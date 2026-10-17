@@ -193,6 +193,11 @@ export class LocalStore {
     return this.outbox.some((i) => i.table === table && i.row.id === id);
   }
 
+  // Waiting to be sent (a change the server already refused doesn't count).
+  private hasUnsent(table: TableName, id: string): boolean {
+    return this.outbox.some((i) => i.table === table && i.row.id === id && !i.rejected);
+  }
+
   nextToSend(): OutboxItem | undefined {
     return this.outbox.find((i) => !i.rejected);
   }
@@ -264,14 +269,15 @@ export class LocalStore {
   }
 
   // Drop jobs (and everything under them) this user can no longer see,
-  // e.g. after being taken off a job.
+  // e.g. after being taken off a job. Refused changes stay listed in the
+  // outbox for the user to review, but don't keep the job on the device.
   pruneJobs(visibleJobIds: Set<string>, childTables: TableName[]): void {
     const jobs = this.tables.get('jobs')!;
     const gone = Array.from(jobs.keys()).filter((id) => !visibleJobIds.has(id));
     if (!gone.length) return;
     const goneSet = new Set(gone);
     for (const id of gone) {
-      if (!this.hasPending('jobs', id)) jobs.delete(id);
+      if (!this.hasUnsent('jobs', id)) jobs.delete(id);
     }
     this.changed('jobs');
     this.saveTableSoon('jobs');
@@ -280,7 +286,7 @@ export class LocalStore {
       let removed = false;
       for (const [id, row] of map) {
         const jobId = (row as BaseRow & { job_id?: string }).job_id;
-        if (jobId && goneSet.has(jobId) && !this.hasPending(t, id)) {
+        if (jobId && goneSet.has(jobId) && !this.hasUnsent(t, id)) {
           map.delete(id);
           removed = true;
         }

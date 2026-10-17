@@ -271,6 +271,22 @@ describe('job assignment', () => {
     expect(store.all('jobs').map((j) => j.id)).toEqual(['j1']);
     expect(store.all('tasks')).toHaveLength(0);
   });
+
+  it('removes the job even if a refused change for it is still listed', async () => {
+    const { store, server, engine } = await setup();
+    server.visibleJobs = new Set(['j1']);
+    server.put('jobs', { id: 'j1', name: 'Job 1' });
+    await engine.sync();
+    server.rejectIds.add('j1');
+    await store.write('jobs', { id: 'j1', name: 'Renamed' });
+    await engine.sync();
+    expect(store.rejectedItems()).toHaveLength(1);
+
+    server.visibleJobs.delete('j1');
+    await engine.sync();
+    expect(store.all('jobs')).toHaveLength(0);
+    expect(store.rejectedItems()).toHaveLength(1); // still shown for review
+  });
 });
 
 describe('sync runs', () => {

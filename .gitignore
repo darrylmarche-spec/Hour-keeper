@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# local end-to-end checks (use test accounts against the live project)
+.e2e/

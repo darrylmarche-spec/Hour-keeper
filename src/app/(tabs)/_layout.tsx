@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { ColorValue, StyleSheet, View } from 'react-native';
+import { ColorValue, Platform, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMe } from '@/data/DataProvider';
 import Colors, { Fonts } from '@/theme/colors';
 
@@ -9,6 +10,7 @@ import Colors, { Fonts } from '@/theme/colors';
 // so it reads the same on every device in the field (as in SCS Checklist).
 export default function TabLayout() {
   const me = useMe();
+  const insets = useSafeAreaInsets();
 
   const icon = (name: keyof typeof Ionicons.glyphMap) =>
     function Icon({ color, focused }: { color: ColorValue; focused: boolean }) {
@@ -21,7 +23,15 @@ export default function TabLayout() {
         headerShown: false,
         tabBarActiveTintColor: Colors.textOnDark,
         tabBarInactiveTintColor: Colors.textOnDarkMuted,
-        tabBarStyle: { backgroundColor: Colors.chrome, borderTopWidth: 0, elevation: 0, paddingTop: 4 },
+        tabBarStyle: {
+          backgroundColor: Colors.chrome,
+          borderTopWidth: 0,
+          elevation: 0,
+          paddingTop: 4,
+          // The web build has no native tab bar sizing; give labels room and
+          // clear the iPhone home indicator when saved to the home screen.
+          ...(Platform.OS === 'web' ? { height: 64 + insets.bottom, paddingBottom: 8 + insets.bottom } : null),
+        },
         tabBarLabelStyle: { fontFamily: Fonts.semibold, fontSize: 11, letterSpacing: 0.2 },
         sceneStyle: { backgroundColor: Colors.background },
       }}

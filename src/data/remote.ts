@@ -58,17 +58,40 @@ function friendly(code: string, msg: string): string {
 export class SupabaseRemote implements Remote {
   constructor(private client: SupabaseClient) {}
 
+  // New rows (never confirmed by the server, so no updated_at yet) are
+  // inserted; rows that came from the server are updated. A plain upsert
+  // isn't used because Postgres checks the INSERT rule even when the row
+  // exists, which would refuse legitimate edits (e.g. a PM correcting a
+  // tech's hours, or anyone editing their profile).
   async upsert(table: TableName, row: BaseRow): Promise<BaseRow | null> {
     const body: Record<string, unknown> = { ...row };
     for (const k of SERVER_OWNED) delete body[k];
-    let res;
+
+    if (!row.updated_at) {
+      const ins = await this.run(() => this.client.from(table).insert(body).select().maybeSingle());
+      if (!ins.error) return ins.data ? normalise(table, ins.data) : null;
+      // Already there: an earlier send reached the server but the reply was lost.
+      if (ins.error.code !== '23505') throw classifyError(ins.error, ins.status);
+    }
+
+    const { id, ...changes } = body;
+    const upd = await this.run(() => this.client.from(table).update(changes).eq('id', id).select().maybeSingle());
+    if (upd.error) throw classifyError(upd.error, upd.status);
+    if (!upd.data) {
+      throw new RemoteError(
+        'rejected',
+        "You don't have permission to make this change (the job may have been closed or reassigned).",
+      );
+    }
+    return normalise(table, upd.data);
+  }
+
+  private async run<T>(fn: () => PromiseLike<T>): Promise<T> {
     try {
-      res = await this.client.from(table).upsert(body, { onConflict: 'id' }).select().maybeSingle();
+      return await fn();
     } catch (e) {
       throw classifyError(e);
     }
-    if (res.error) throw classifyError(res.error, res.status);
-    return res.data ? normalise(table, res.data) : null;
   }
 
   async pull(table: TableName, after: Cursor | null, limit: number, jobId?: string): Promise<BaseRow[]> {

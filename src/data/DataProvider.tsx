@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 import React, { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { useAuth } from '@/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { LocalStore } from './localStore';
@@ -18,6 +18,9 @@ interface DataValue {
 const DataContext = createContext<DataValue | null>(null);
 
 const BACKGROUND_SYNC_MS = 60_000;
+// While offline, check for signal more often so queued work goes out soon
+// after it returns.
+const OFFLINE_RETRY_MS = 15_000;
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const { userId } = useAuth();
@@ -65,8 +68,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (s === 'background') void store.flush();
       });
       cleanups.push(() => sub.remove());
-      const interval = setInterval(() => void engine.sync(), BACKGROUND_SYNC_MS);
-      cleanups.push(() => clearInterval(interval));
+      let lastRun = Date.now();
+      const tick = setInterval(() => {
+        const wait = engine.getState().phase === 'offline' ? OFFLINE_RETRY_MS : BACKGROUND_SYNC_MS;
+        if (Date.now() - lastRun >= wait) {
+          lastRun = Date.now();
+          void engine.sync();
+        }
+      }, 5_000);
+      cleanups.push(() => clearInterval(tick));
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        const online = () => void engine.sync();
+        window.addEventListener('online', online);
+        cleanups.push(() => window.removeEventListener('online', online));
+      }
       cleanups.push(() => {
         if (timer) clearTimeout(timer);
       });
