@@ -96,15 +96,33 @@ The import format will be built around the **template supplied by Darryl**.
 
 ## Build phases
 
-1. **Foundation** — project setup, look & feel, login & roles, offline storage + sync engine, sync status indicator
+1. **Foundation** ✅ — project setup, look & feel, login & roles, offline storage + sync engine, sync status indicator
 2. **PM job setup** — create job, phases/tasks, Excel/CSV/PDF import with review screen, assign & release
 3. **Tech logging** — hours, photos, files, comments, edit history; all offline
 4. **Reports** — in-app reports, PDF export/share, PM percentages & cross-job comparison
 5. **Beta** — small crew, gather feedback
 6. **Later** — service & repair job types, app store builds, integrations (payroll/accounting)
 
+## Template (from Darryl's sheet)
+
+Seeded as **"Lift Installation — Construction"** (lines 0–55, 60–62) plus a sample
+draft job **"Hightett Common Building F - Duplex"** (struck-out lines 16 & 17 left out).
+
+- The sheet has no phases; lines are grouped into suggested phases a PM can rename:
+  Site setup · Rails & car structure · Machine & motor spin · Belt lift · Door frames ·
+  Car & interior · Wiring · Commissioning & testing · Other hours
+- Lines **60 Other Productive (VO)** and **61 Other Non-Productive (site readiness)** are the
+  "Unplanned / Extra" buckets — no separate bucket needed
+- The header says **Total Allowed Hours 193**, but the lines add up to **216**. The app stores
+  the header figure, reports from the lines, and shows PMs a warning when they differ
+- Sheet numbering typos (13/14/15 printed as "16"/"14"/"16") corrected
+
 ## Open items
 
-- [ ] Task template from Darryl (drives the import format)
-- [ ] Supabase project setup (region, org)
-- [ ] Vercel project setup
+- [x] Task template from Darryl
+- [x] Supabase project `hour-keeper` (Sydney)
+- [ ] Vercel project — connector lacked permission; import the GitHub repo at vercel.com (settings come from `vercel.json`)
+- [ ] Supabase Auth: turn off "Confirm email" for the beta (admin approval already gates access), or add custom SMTP
+- [ ] Confirm the 193 vs 216 total on the Hightett sheet
+- [ ] Remove the two switched-off test accounts (`hk-e2e-*@example.com`)
+- [ ] Replace the placeholder "HK" app icon with a company one, if wanted
