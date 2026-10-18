@@ -96,15 +96,34 @@ The import format will be built around the **template supplied by Darryl**.
 
 ## Build phases
 
-1. **Foundation** — project setup, look & feel, login & roles, offline storage + sync engine, sync status indicator
+1. **Foundation** ✅ — project setup, look & feel, login & roles, offline storage + sync engine, sync status indicator
 2. **PM job setup** — create job, phases/tasks, Excel/CSV/PDF import with review screen, assign & release
 3. **Tech logging** — hours, photos, files, comments, edit history; all offline
 4. **Reports** — in-app reports, PDF export/share, PM percentages & cross-job comparison
 5. **Beta** — small crew, gather feedback
 6. **Later** — service & repair job types, app store builds, integrations (payroll/accounting)
 
+## Template (from Darryl's sheet)
+
+Seeded as **"Lift Installation — Construction"** (lines 0–55, 60–62) plus a sample
+draft job **"Hightett Common Building F - Duplex"** (struck-out lines 16 & 17 left out).
+
+- The sheet has no phases; lines are grouped into suggested phases a PM can rename:
+  Site setup · Rails & car structure · Machine & motor spin · Belt lift · Door frames ·
+  Car & interior · Wiring · Commissioning & testing · Other hours
+- Lines **60 Other Productive (VO)** and **61 Other Non-Productive (site readiness)** are the
+  "Unplanned / Extra" buckets — no separate bucket needed
+- The header said **Total Allowed Hours 193**, but the lines add up to **216** — Darryl confirmed
+  **216 (the task lines) is correct**. The app stores a job's header total separately, reports from
+  the lines, and warns PMs whenever the two differ
+- Sheet numbering typos (13/14/15 printed as "16"/"14"/"16") corrected
+
 ## Open items
 
-- [ ] Task template from Darryl (drives the import format)
-- [ ] Supabase project setup (region, org)
-- [ ] Vercel project setup
+- [x] Task template from Darryl
+- [x] Supabase project `hour-keeper` (Sydney)
+- [x] Vercel project `hourkeeper` — live at https://hourkeeper.vercel.app
+- [x] Supabase Auth: "Confirm email" off for the beta, Site URL set
+- [x] Confirm the Hightett total — task lines (216) are correct
+- [x] Remove the two test accounts
+- [ ] Replace the placeholder "HK" app icon with a company one, if wanted

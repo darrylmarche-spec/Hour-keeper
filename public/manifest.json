@@ -1,0 +1,13 @@
+{
+  "short_name": "Hour Keeper",
+  "name": "Hour Keeper",
+  "icons": [
+    { "src": "/logo192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/logo512.png", "type": "image/png", "sizes": "512x512" }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#CC0000",
+  "background_color": "#D8D8D8"
+}
