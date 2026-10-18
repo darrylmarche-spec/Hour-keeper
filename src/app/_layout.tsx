@@ -7,7 +7,7 @@ import {
 } from '@expo-google-fonts/inter';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
@@ -15,8 +15,20 @@ import { Button } from '@/components/ui';
 import { DataProvider, useData, useDataMaybe, useMe, useSyncState } from '@/data/DataProvider';
 import Colors, { Fonts } from '@/theme/colors';
 
+// Never hold the app back for fonts for longer than this; text shows in the
+// phone's own font until Inter arrives.
+const FONT_WAIT_MS = 3000;
+// After this long on any loading screen, explain and offer a way out.
+const STUCK_AFTER_MS = 10000;
+
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
+  const [fontsLoaded, fontError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
+  const [fontWaitOver, setFontWaitOver] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setFontWaitOver(true), FONT_WAIT_MS);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     // Lets the web version open with no signal once it has been visited.
@@ -25,7 +37,8 @@ export default function RootLayout() {
     }
   }, []);
 
-  if (!fontsLoaded) return <Splash />;
+  // A slow or failed font download must never trap people on this screen.
+  if (!fontsLoaded && !fontError && !fontWaitOver) return <Splash step="Loading fonts" />;
 
   return (
     <SafeAreaProvider>
@@ -43,8 +56,8 @@ function RootNavigator() {
   const { ready, session } = useAuth();
   const data = useDataMaybe();
 
-  if (!ready) return <Splash />;
-  if (session && !data) return <Splash />;
+  if (!ready) return <Splash step="Checking sign-in" />;
+  if (session && !data) return <Splash step="Opening this device's data" />;
 
   return session ? <SignedIn /> : <Screens signedIn={false} approved={false} />;
 }
@@ -72,7 +85,7 @@ function SignedIn() {
         </Splash>
       );
     }
-    return <Splash message="Setting up this device…" />;
+    return <Splash message="Setting up this device…" step="First download" />;
   }
 
   const approved = me.active;
@@ -100,12 +113,27 @@ function Screens({ signedIn, approved }: { signedIn: boolean; approved: boolean 
   );
 }
 
-function Splash({ message, children }: { message?: string; children?: React.ReactNode }) {
+function Splash({ message, step, children }: { message?: string; step?: string; children?: React.ReactNode }) {
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setStuck(true), STUCK_AFTER_MS);
+    return () => clearTimeout(t);
+  }, []);
+  const canReload = Platform.OS === 'web' && typeof window !== 'undefined';
+
   return (
     <View style={styles.splash}>
       <Text style={styles.brand}>Hour Keeper</Text>
       {message ? <Text style={styles.message}>{message}</Text> : <ActivityIndicator color={Colors.textOnDark} />}
       {children ? <View style={styles.actions}>{children}</View> : null}
+      {stuck && !children ? (
+        <View style={styles.actions}>
+          <Text style={styles.message}>
+            Taking longer than usual{step ? ` (${step})` : ''}. Check your signal, then try again.
+          </Text>
+          {canReload ? <Button title="Reload" icon="refresh" onPress={() => window.location.reload()} /> : null}
+        </View>
+      ) : null}
     </View>
   );
 }

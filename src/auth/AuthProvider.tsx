@@ -13,6 +13,8 @@ interface AuthValue {
 
 const AuthContext = createContext<AuthValue | null>(null);
 
+const SESSION_WAIT_MS = 5000;
+
 function friendlyAuthError(msg: string): string {
   if (/invalid login credentials/i.test(msg)) return 'That email and password don’t match.';
   if (/email not confirmed/i.test(msg)) return 'Please confirm your email first — check your inbox for the link.';
@@ -27,12 +29,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // The saved session is read from the device, so this works offline.
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    // If reading it fails or hangs, carry on signed out rather than waiting
+    // forever; a valid session still arrives via onAuthStateChange.
+    let settled = false;
+    const settle = (s: Session | null) => {
+      if (settled) return;
+      settled = true;
+      setSession(s);
       setReady(true);
-    });
+    };
+    const fallback = setTimeout(() => settle(null), SESSION_WAIT_MS);
+    supabase.auth
+      .getSession()
+      .then(({ data }) => settle(data.session))
+      .catch(() => settle(null))
+      .finally(() => clearTimeout(fallback));
     const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
-    return () => data.subscription.unsubscribe();
+    return () => {
+      clearTimeout(fallback);
+      data.subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
