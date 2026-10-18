@@ -122,8 +122,8 @@ draft job **"Hightett Common Building F - Duplex"** (struck-out lines 16 & 17 le
 
 - [x] Task template from Darryl
 - [x] Supabase project `hour-keeper` (Sydney)
-- [ ] Vercel project — connector lacked permission; import the GitHub repo at vercel.com (settings come from `vercel.json`)
-- [ ] Supabase Auth: turn off "Confirm email" for the beta (admin approval already gates access), or add custom SMTP
+- [x] Vercel project `hourkeeper` — live at https://hourkeeper.vercel.app
+- [x] Supabase Auth: "Confirm email" off for the beta, Site URL set
 - [x] Confirm the Hightett total — task lines (216) are correct
-- [ ] Remove the two switched-off test accounts (`hk-e2e-*@example.com`) — SQL editor snippet given in chat
+- [x] Remove the two test accounts
 - [ ] Replace the placeholder "HK" app icon with a company one, if wanted
