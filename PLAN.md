@@ -125,5 +125,5 @@ draft job **"Hightett Common Building F - Duplex"** (struck-out lines 16 & 17 le
 - [ ] Vercel project — connector lacked permission; import the GitHub repo at vercel.com (settings come from `vercel.json`)
 - [ ] Supabase Auth: turn off "Confirm email" for the beta (admin approval already gates access), or add custom SMTP
 - [x] Confirm the Hightett total — task lines (216) are correct
-- [ ] Remove the two switched-off test accounts (`hk-e2e-*@example.com`)
+- [ ] Remove the two switched-off test accounts (`hk-e2e-*@example.com`) — SQL editor snippet given in chat
 - [ ] Replace the placeholder "HK" app icon with a company one, if wanted
