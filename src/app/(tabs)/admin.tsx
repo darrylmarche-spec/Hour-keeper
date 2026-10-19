@@ -1,6 +1,10 @@
-import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, CommandBar, EmptyState, Pill, SectionBar } from '@/components/ui';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import React, { useMemo, useState } from 'react';
+import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { inviteText } from '@/beta/invite';
+import { Button, CommandBar, EmptyState, Notice, Pill, SectionBar } from '@/components/ui';
+import { APP_URL } from '@/lib/config';
 import { useMe, useSave, useTable } from '@/data/DataProvider';
 import { Profile, Role } from '@/data/schema';
 import { confirm } from '@/lib/confirm';
@@ -12,7 +16,11 @@ const ROLES: Role[] = ['tech', 'supervisor', 'pm', 'admin'];
 export default function AdminScreen() {
   const me = useMe()!;
   const profiles = useTable('profiles');
+  const feedback = useTable('feedback');
+  const errors = useTable('app_errors');
   const save = useSave();
+  const [inviteNote, setInviteNote] = useState<string | null>(null);
+  const newFeedback = feedback.filter((f) => f.status === 'new').length;
 
   const { waiting, active, off } = useMemo(() => {
     const byName = (a: Profile, b: Profile) => (a.full_name || a.email).localeCompare(b.full_name || b.email);
@@ -46,10 +54,47 @@ export default function AdminScreen() {
     await save('profiles', { ...p, active: activeNow });
   };
 
+  const invite = async () => {
+    setInviteNote(null);
+    const url = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : APP_URL;
+    const message = inviteText(url);
+    try {
+      if (Platform.OS !== 'web' || typeof navigator.share === 'function') {
+        await Share.share({ message, title: 'Hour Keeper invite' });
+        return;
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return;
+    }
+    try {
+      await navigator.clipboard.writeText(message);
+      setInviteNote('Invite copied — paste it into a text, email or Teams message.');
+    } catch {
+      setInviteNote(message);
+    }
+  };
+
   return (
     <View style={styles.screen}>
       <CommandBar title="Admin" subtitle="People & roles" />
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <Pressable
+          onPress={() => router.push('/feedback-inbox')}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.link, pressed && { backgroundColor: Colors.surfacePressed }]}
+        >
+          <Ionicons name="chatbubbles-outline" size={20} color={Colors.text} />
+          <Text style={styles.linkText}>Feedback & problems</Text>
+          {newFeedback ? <Pill text={`${newFeedback} new`} tone="bad" /> : null}
+          {errors.length ? <Pill text={`${errors.length} problem${errors.length === 1 ? '' : 's'}`} tone="warn" /> : null}
+          <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+        </Pressable>
+        <View style={styles.inviteBox}>
+          <Text style={styles.inviteText}>Invite your crew: they request an account, then you approve them here.</Text>
+          <Button title="Invite people" icon="person-add-outline" variant="secondary" onPress={() => void invite()} />
+          {inviteNote ? <Notice tone="ok">{inviteNote}</Notice> : null}
+        </View>
+
         {waiting.length ? (
           <>
             <SectionBar title={`Waiting for approval · ${waiting.length}`} />
@@ -128,6 +173,10 @@ function PersonCard({
 }
 
 const styles = StyleSheet.create({
+  link: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  linkText: { flex: 1, fontFamily: Fonts.semibold, fontSize: 16, color: Colors.text },
+  inviteBox: { padding: 16, gap: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  inviteText: { fontFamily: Fonts.regular, fontSize: 14, color: Colors.textSecondary },
   screen: { flex: 1, backgroundColor: Colors.background },
   card: { padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
   name: { fontFamily: Fonts.semibold, fontSize: 16, color: Colors.text },

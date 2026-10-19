@@ -21,8 +21,8 @@ export default function SignUp() {
       setError('Fill in your name, email and a password.');
       return;
     }
-    if (password.length < 8) {
-      setError('Use at least 8 characters for your password.');
+    if (password.length < 10 || !/[a-z]/i.test(password) || !/\d/.test(password)) {
+      setError('Use at least 10 characters for your password, with letters and numbers.');
       return;
     }
     setBusy(true);
@@ -69,7 +69,7 @@ export default function SignUp() {
                 secureTextEntry
                 autoComplete="new-password"
                 textContentType="newPassword"
-                hint="At least 8 characters."
+                hint="At least 10 characters, with letters and numbers."
                 onSubmitEditing={submit}
               />
               <Button title="Request account" onPress={submit} loading={busy} />

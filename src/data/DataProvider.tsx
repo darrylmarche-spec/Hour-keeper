@@ -4,7 +4,9 @@ import * as Crypto from 'expo-crypto';
 import React, { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
 import { useAuth } from '@/auth/AuthProvider';
+import { reporter } from '@/beta/reporter';
 import { uploadAttachmentFile } from '@/files/attachments';
+import { APP_VERSION, BUILD_ID, deviceLabel } from '@/lib/appInfo';
 import { supabase } from '@/lib/supabase';
 import { LocalStore } from './localStore';
 import { SupabaseRemote } from './remote';
@@ -48,6 +50,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       setLoaded({ userId, value: { store, engine } });
       void engine.sync();
+
+      // Problems the app hits are saved here and go up with the next sync.
+      const device = deviceLabel();
+      reporter.connect((row) =>
+        void store.write('app_errors', { ...row, user_id: userId, app_version: `${APP_VERSION} (${BUILD_ID})`, device }),
+      );
+      cleanups.push(() => reporter.connect(null));
 
       // Sync after local changes (debounced), when signal returns, when the
       // app comes back to the foreground, and every minute while open.

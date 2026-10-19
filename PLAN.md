@@ -106,7 +106,10 @@ The import format will be built around the **template supplied by Darryl**.
    extras, hours by person and by day, comments; PMs also get % used and a **Compare jobs** screen
    (jobs ranked, tasks that run over on job after job). **Share PDF / Save PDF** without leaving the app,
    offline too
-5. **Beta** — small crew, gather feedback
+5. **Beta** 🔄 — tools ready: in-app **Send feedback** (works offline), automatic problem reports
+   (crashes/unexpected errors with screen, phone and version), **Admin → Feedback & problems**,
+   **Invite people**, "new version ready — Reload" banner, version shown in More.
+   Run sheet: [BETA.md](BETA.md). Next: a small crew on one real job for 2–3 weeks
 6. **Later** — service & repair job types, app store builds, integrations (payroll/accounting)
 
 ## Template (from Darryl's sheet)

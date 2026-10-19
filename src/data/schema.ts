@@ -120,6 +120,28 @@ export interface Attachment extends BaseRow {
   created_at?: string;
 }
 
+export interface Feedback extends BaseRow {
+  user_id: string;
+  kind: 'problem' | 'idea' | 'other';
+  body: string;
+  screen: string;
+  app_version: string;
+  device: string;
+  status: 'new' | 'seen' | 'done';
+  created_at?: string;
+}
+
+export interface AppError extends BaseRow {
+  user_id: string;
+  message: string;
+  stack: string;
+  screen: string;
+  app_version: string;
+  device: string;
+  count: number;
+  created_at?: string;
+}
+
 export interface Tables {
   profiles: Profile;
   templates: Template;
@@ -133,6 +155,8 @@ export interface Tables {
   time_entry_edits: TimeEntryEdit;
   comments: Comment;
   attachments: Attachment;
+  feedback: Feedback;
+  app_errors: AppError;
 }
 
 export type TableName = keyof Tables;
@@ -151,6 +175,8 @@ export const TABLES: TableName[] = [
   'time_entry_edits',
   'comments',
   'attachments',
+  'feedback',
+  'app_errors',
 ];
 
 // Tables whose rows belong to a job. When a job first becomes visible on this

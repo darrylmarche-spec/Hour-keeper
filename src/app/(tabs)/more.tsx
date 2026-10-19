@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '@/auth/AuthProvider';
 import { Button, CommandBar, Field, SectionBar } from '@/components/ui';
 import { useMe, useSave, useSyncState } from '@/data/DataProvider';
+import { VERSION_LABEL } from '@/lib/appInfo';
 import { confirm } from '@/lib/confirm';
 import { managesJobs, ROLE_LABELS } from '@/lib/roles';
 import Colors, { Fonts } from '@/theme/colors';
@@ -60,6 +61,17 @@ export default function MoreScreen() {
           </>
         ) : null}
 
+        <SectionBar title="Beta" />
+        <Pressable
+          style={({ pressed }) => [styles.link, pressed && { backgroundColor: Colors.surfacePressed }]}
+          onPress={() => router.push('/feedback')}
+          accessibilityRole="button"
+        >
+          <Ionicons name="chatbubble-ellipses-outline" size={20} color={Colors.text} />
+          <Text style={styles.linkText}>Send feedback</Text>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+        </Pressable>
+
         <SectionBar title="This device" />
         <Pressable
           style={({ pressed }) => [styles.link, pressed && { backgroundColor: Colors.surfacePressed }]}
@@ -73,6 +85,7 @@ export default function MoreScreen() {
 
         <View style={styles.block}>
           <Button title="Sign out" variant="danger" icon="log-out-outline" onPress={() => void doSignOut()} />
+          <Text style={styles.version}>Hour Keeper {VERSION_LABEL}</Text>
         </View>
       </ScrollView>
     </View>
@@ -80,6 +93,7 @@ export default function MoreScreen() {
 }
 
 const styles = StyleSheet.create({
+  version: { fontFamily: Fonts.regular, fontSize: 12.5, color: Colors.textTertiary, textAlign: 'center' },
   screen: { flex: 1, backgroundColor: Colors.background },
   block: { padding: 16, gap: 12 },
   line: { fontFamily: Fonts.semibold, fontSize: 16, color: Colors.text },
