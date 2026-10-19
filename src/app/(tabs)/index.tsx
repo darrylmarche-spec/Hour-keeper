@@ -6,7 +6,7 @@ import { CommandBar, EmptyState, Pill, SectionBar } from '@/components/ui';
 import { useMe, useTable } from '@/data/DataProvider';
 import { Job, JobStatus } from '@/data/schema';
 import { formatHours, percentUsed } from '@/data/totals';
-import { ROLE_LABELS, seesAllJobs, seesPercentages, STATUS_LABELS } from '@/lib/roles';
+import { managesJobs, ROLE_LABELS, seesAllJobs, seesPercentages, STATUS_LABELS } from '@/lib/roles';
 import Colors, { Fonts } from '@/theme/colors';
 
 const STATUS_ORDER: JobStatus[] = ['released', 'draft', 'complete'];
@@ -39,7 +39,23 @@ export default function JobsScreen() {
 
   return (
     <View style={styles.screen}>
-      <CommandBar title="Jobs" subtitle={`${me.full_name || me.email} · ${ROLE_LABELS[me.role]}`} />
+      <CommandBar
+        title="Jobs"
+        subtitle={`${me.full_name || me.email} · ${ROLE_LABELS[me.role]}`}
+        right={
+          managesJobs(me.role) ? (
+            <Pressable
+              onPress={() => router.push('/job/new')}
+              accessibilityRole="button"
+              accessibilityLabel="New job"
+              style={({ pressed }) => [styles.newBtn, pressed && { opacity: 0.8 }]}
+            >
+              <Ionicons name="add" size={18} color={Colors.primary} />
+              <Text style={styles.newText}>New job</Text>
+            </Pressable>
+          ) : undefined
+        }
+      />
       <SectionList
         sections={sections}
         keyExtractor={(i) => i.job.id}
@@ -54,7 +70,9 @@ export default function JobsScreen() {
             icon="briefcase-outline"
             title="No jobs yet"
             message={
-              seesAllJobs(me.role)
+              managesJobs(me.role)
+                ? 'Tap “New job” to set one up — import an hours sheet, start from a template, or type the tasks in.'
+                : seesAllJobs(me.role)
                 ? 'Jobs created by project managers will show here.'
                 : 'When a project manager assigns you to a job, it will show here — even offline once it has downloaded.'
             }
@@ -104,6 +122,16 @@ function JobRow({ job, sold, actual, showPercent }: { job: Job; sold: number; ac
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  newBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.field,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  newText: { fontFamily: Fonts.bold, fontSize: 13, color: Colors.primary },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

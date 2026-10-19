@@ -126,6 +126,13 @@ export class LocalStore {
     return snap as readonly T[];
   }
 
+  // Includes removed (soft-deleted) rows — for bringing one back rather than
+  // creating a duplicate.
+  findAny<T extends BaseRow>(table: TableName, pred: (row: T) => boolean): T | undefined {
+    for (const row of this.tables.get(table)!.values()) if (pred(row as T)) return row as T;
+    return undefined;
+  }
+
   get<T extends BaseRow>(table: TableName, id: string): T | undefined {
     const row = this.tables.get(table)!.get(id);
     return row && !row.deleted_at ? (row as T) : undefined;
@@ -149,30 +156,41 @@ export class LocalStore {
   // Save a row on this device and queue it for the server. Awaited so the
   // change survives the app being closed straight after.
   async write<T extends BaseRow>(table: TableName, row: T): Promise<T> {
-    this.tables.get(table)!.set(row.id, row);
-    this.changed(table);
-
-    // Collapse repeated edits to the same row into one queued change,
-    // unless that change is being sent right now.
-    const existing = this.outbox.find(
-      (i) => i.table === table && i.row.id === row.id && i.seq !== this.inFlightSeq,
-    );
-    if (existing) {
-      existing.row = row;
-      existing.rejected = undefined;
-      existing.attempts = 0;
-    } else {
-      this.outbox.push({
-        seq: this.nextSeq++,
-        table,
-        row,
-        queuedAt: new Date().toISOString(),
-        attempts: 0,
-      });
-    }
-    await Promise.all([this.saveTableNow(table), this.saveOutbox()]);
-    this.emit();
+    await this.writeMany([{ table, row }]);
     return row;
+  }
+
+  // Save several rows at once (e.g. a whole job: job, phases, tasks). They're
+  // queued in the order given, so parents reach the server before children.
+  async writeMany(items: { table: TableName; row: BaseRow }[]): Promise<void> {
+    if (!items.length) return;
+    const touched = new Set<TableName>();
+    for (const { table, row } of items) {
+      this.tables.get(table)!.set(row.id, row);
+      this.changed(table);
+      touched.add(table);
+
+      // Collapse repeated edits to the same row into one queued change,
+      // unless that change is being sent right now.
+      const existing = this.outbox.find(
+        (i) => i.table === table && i.row.id === row.id && i.seq !== this.inFlightSeq,
+      );
+      if (existing) {
+        existing.row = row;
+        existing.rejected = undefined;
+        existing.attempts = 0;
+      } else {
+        this.outbox.push({
+          seq: this.nextSeq++,
+          table,
+          row,
+          queuedAt: new Date().toISOString(),
+          attempts: 0,
+        });
+      }
+    }
+    await Promise.all([...Array.from(touched, (t) => this.saveTableNow(t)), this.saveOutbox()]);
+    this.emit();
   }
 
   // ── Outbox (used by the sync engine) ─────────────────────────

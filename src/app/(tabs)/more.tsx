@@ -6,7 +6,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { Button, CommandBar, Field, SectionBar } from '@/components/ui';
 import { useMe, useSave, useSyncState } from '@/data/DataProvider';
 import { confirm } from '@/lib/confirm';
-import { ROLE_LABELS } from '@/lib/roles';
+import { managesJobs, ROLE_LABELS } from '@/lib/roles';
 import Colors, { Fonts } from '@/theme/colors';
 
 export default function MoreScreen() {
@@ -44,6 +44,21 @@ export default function MoreScreen() {
             <Button title="Save name" onPress={() => void save('profiles', { ...me, full_name: name.trim() })} />
           ) : null}
         </View>
+
+        {managesJobs(me.role) ? (
+          <>
+            <SectionBar title="Job setup" />
+            <Pressable
+              style={({ pressed }) => [styles.link, pressed && { backgroundColor: Colors.surfacePressed }]}
+              onPress={() => router.push('/templates')}
+              accessibilityRole="button"
+            >
+              <Ionicons name="copy-outline" size={20} color={Colors.text} />
+              <Text style={styles.linkText}>Templates</Text>
+              <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+            </Pressable>
+          </>
+        ) : null}
 
         <SectionBar title="This device" />
         <Pressable

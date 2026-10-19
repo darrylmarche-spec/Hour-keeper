@@ -5,7 +5,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
-import { Stack } from 'expo-router';
+import { ErrorBoundaryProps, router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
@@ -20,6 +20,39 @@ import Colors, { Fonts } from '@/theme/colors';
 const FONT_WAIT_MS = 3000;
 // After this long on any loading screen, explain and offer a way out.
 const STUCK_AFTER_MS = 10000;
+
+// If a screen fails to load or crashes (e.g. no signal before the web app has
+// finished saving itself for offline use), show a way out instead of a blank
+// page. Saved hours are on the device and aren't affected.
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  return (
+    <View style={styles.splash}>
+      <Text style={styles.brand}>This screen didn’t load</Text>
+      <Text style={styles.message}>
+        Anything you’ve saved is safe on this device. If you’re out of signal, try again once you’re back in range.
+      </Text>
+      <View style={styles.actions}>
+        <Button
+          title="Try again"
+          icon="refresh"
+          onPress={() => {
+            // A screen whose download failed is only fetched again on reload.
+            if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.reload();
+            else void retry();
+          }}
+        />
+        <Button
+          title="Go to Jobs"
+          variant="secondary"
+          onPress={() => {
+            if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.assign('/');
+            else router.replace('/');
+          }}
+        />
+      </View>
+    </View>
+  );
+}
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
@@ -104,7 +137,11 @@ function Screens({ signedIn, approved }: { signedIn: boolean; approved: boolean 
       </Stack.Protected>
       <Stack.Protected guard={signedIn && approved}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="job/[id]" />
+        <Stack.Screen name="job/new" />
+        <Stack.Screen name="job/[id]/index" />
+        <Stack.Screen name="job/[id]/edit" />
+        <Stack.Screen name="job/[id]/team" />
+        <Stack.Screen name="templates" />
       </Stack.Protected>
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="sync" />

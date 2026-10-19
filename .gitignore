@@ -42,3 +42,4 @@ yarn-error.*
 
 # local end-to-end checks (use test accounts against the live project)
 .e2e/
+public/pdf.worker.min.mjs

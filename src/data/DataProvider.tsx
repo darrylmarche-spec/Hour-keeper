@@ -143,3 +143,9 @@ export function useSave() {
   const { store } = useData();
   return <K extends TableName>(table: K, row: Tables[K] & BaseRow) => store.write(table, row);
 }
+
+// Save several rows in one go, in order (parents before children).
+export function useSaveMany() {
+  const { store } = useData();
+  return (items: { table: TableName; row: BaseRow }[]) => store.writeMany(items);
+}

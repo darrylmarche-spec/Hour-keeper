@@ -25,10 +25,10 @@ export function goBackOrHome() {
   else router.replace('/');
 }
 
-export function BackButton({ label = 'Back' }: { label?: string }) {
+export function BackButton({ label = 'Back', onPress = goBackOrHome }: { label?: string; onPress?: () => void }) {
   return (
     <Pressable
-      onPress={goBackOrHome}
+      onPress={onPress}
       hitSlop={10}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -46,17 +46,19 @@ export function CommandBar({
   title,
   subtitle,
   back,
+  onBack,
   right,
 }: {
   title: string;
   subtitle?: string;
   back?: boolean | string;
+  onBack?: () => void;
   right?: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.bar, { paddingTop: insets.top + 10 }]}>
-      {back ? <BackButton label={typeof back === 'string' ? back : 'Back'} /> : null}
+      {back ? <BackButton label={typeof back === 'string' ? back : 'Back'} onPress={onBack} /> : null}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.barTitle} numberOfLines={1} accessibilityRole="header">
           {title}
