@@ -4,10 +4,11 @@ import * as Crypto from 'expo-crypto';
 import React, { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
 import { useAuth } from '@/auth/AuthProvider';
+import { uploadAttachmentFile } from '@/files/attachments';
 import { supabase } from '@/lib/supabase';
 import { LocalStore } from './localStore';
 import { SupabaseRemote } from './remote';
-import { BaseRow, Profile, TableName, Tables } from './schema';
+import { Attachment, BaseRow, Profile, TableName, Tables } from './schema';
 import { SyncEngine, SyncState } from './sync';
 
 interface DataValue {
@@ -33,7 +34,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
     let cancelled = false;
     const store = new LocalStore(AsyncStorage, `hk:${userId}`);
-    const engine = new SyncEngine(store, new SupabaseRemote(supabase));
+    const engine = new SyncEngine(store, new SupabaseRemote(supabase), {
+      // A new attachment's file goes up before its row.
+      beforePush: async (item) => {
+        if (item.table === 'attachments' && !item.row.updated_at && !item.row.deleted_at) {
+          await uploadAttachmentFile(supabase, item.row as Attachment);
+        }
+      },
+    });
     const cleanups: (() => void)[] = [];
 
     store.load().then(() => {
@@ -127,6 +135,16 @@ export function useSyncState(): SyncState {
     (fn) => engine.subscribe(fn),
     () => engine.getState(),
     () => engine.getState(),
+  );
+}
+
+// True while a change to this row is still waiting to reach the server.
+export function useIsPending(table: TableName, id: string): boolean {
+  const { store } = useData();
+  return useSyncExternalStore(
+    (fn) => store.subscribe(fn),
+    () => store.hasPending(table, id),
+    () => store.hasPending(table, id),
   );
 }
 

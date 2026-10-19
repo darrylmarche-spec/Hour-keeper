@@ -40,6 +40,14 @@
           "imageWidth": 160,
           "backgroundColor": "#CC0000"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Hour Keeper uses your photos so you can attach site photos to a job.",
+          "cameraPermission": "Hour Keeper uses the camera so you can take site photos for a job.",
+          "microphonePermission": false
+        }
       ]
     ],
     "experiments": {

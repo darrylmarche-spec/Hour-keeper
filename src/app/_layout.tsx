@@ -141,6 +141,7 @@ function Screens({ signedIn, approved }: { signedIn: boolean; approved: boolean 
         <Stack.Screen name="job/[id]/index" />
         <Stack.Screen name="job/[id]/edit" />
         <Stack.Screen name="job/[id]/team" />
+        <Stack.Screen name="job/[id]/task/[taskId]" />
         <Stack.Screen name="templates" />
       </Stack.Protected>
       <Stack.Protected guard={signedIn}>

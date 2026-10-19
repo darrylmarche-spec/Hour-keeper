@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { JobActions } from '@/components/JobActions';
@@ -17,16 +17,23 @@ export default function JobScreen() {
   const allPhases = useTable('phases');
   const allTasks = useTable('tasks');
   const allEntries = useTable('time_entries');
+  const allComments = useTable('comments');
+  const allAttachments = useTable('attachments');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  const { phases, tasksByPhase, totals } = useMemo(() => {
+  const { phases, tasksByPhase, totals, extras } = useMemo(() => {
     const phases = allPhases.filter((p) => p.job_id === id).sort((a, b) => a.sort_order - b.sort_order);
     const tasks = allTasks.filter((t) => t.job_id === id).sort((a, b) => a.sort_order - b.sort_order);
     const entries = allEntries.filter((e) => e.job_id === id);
     const tasksByPhase = new Map<string, Task[]>();
     for (const t of tasks) tasksByPhase.set(t.phase_id, [...(tasksByPhase.get(t.phase_id) ?? []), t]);
-    return { phases, tasksByPhase, totals: jobTotals(phases, tasks, entries) };
-  }, [allPhases, allTasks, allEntries, id]);
+    // Notes and photos per task, shown as small counts on each row.
+    const extras = new Map<string, number>();
+    for (const r of [...allComments, ...allAttachments]) {
+      if (r.job_id === id && r.task_id) extras.set(r.task_id, (extras.get(r.task_id) ?? 0) + 1);
+    }
+    return { phases, tasksByPhase, totals: jobTotals(phases, tasks, entries), extras };
+  }, [allPhases, allTasks, allEntries, allComments, allAttachments, id]);
 
   if (!job) {
     return (
@@ -105,14 +112,21 @@ export default function JobScreen() {
               </Pressable>
               {open
                 ? (tasksByPhase.get(p.id) ?? []).map((t) => (
-                    <TaskRow key={t.id} task={t} totals={totals.byTask.get(t.id)!} showPct={showPct} />
+                    <TaskRow
+                      key={t.id}
+                      task={t}
+                      totals={totals.byTask.get(t.id)!}
+                      showPct={showPct}
+                      extras={extras.get(t.id) ?? 0}
+                      onPress={() => router.push({ pathname: '/job/[id]/task/[taskId]', params: { id: job.id, taskId: t.id } })}
+                    />
                   ))
                 : null}
             </View>
           );
         })}
 
-        <Text style={styles.footnote}>Hours shown are actual / sold.</Text>
+        <Text style={styles.footnote}>Hours shown are actual / sold. Tap a task to log hours, add notes or photos.</Text>
       </ScrollView>
     </View>
   );
@@ -152,15 +166,40 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'ok
   );
 }
 
-function TaskRow({ task, totals, showPct }: { task: Task; totals: HourTotals; showPct: boolean }) {
+function TaskRow({
+  task,
+  totals,
+  showPct,
+  extras,
+  onPress,
+}: {
+  task: Task;
+  totals: HourTotals;
+  showPct: boolean;
+  extras: number;
+  onPress: () => void;
+}) {
   const over = totals.actual > totals.sold;
   const extra = task.kind !== 'planned';
   return (
-    <View style={styles.task}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${task.name}, ${formatHours(totals.actual)} of ${formatHours(totals.sold)} hours`}
+      style={({ pressed }) => [styles.task, pressed && { backgroundColor: Colors.surfacePressed }]}
+    >
       <Text style={styles.lineNo}>{task.line_no}</Text>
       <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
         <Text style={styles.taskName}>{task.name}</Text>
-        {extra ? <Pill text={task.kind === 'extra_productive' ? 'Extra · productive' : 'Extra · non-productive'} tone="warn" /> : null}
+        <View style={styles.taskTags}>
+          {extra ? <Pill text={task.kind === 'extra_productive' ? 'Extra · productive' : 'Extra · non-productive'} tone="warn" /> : null}
+          {extras ? (
+            <View style={styles.extras}>
+              <Ionicons name="chatbubbles-outline" size={13} color={Colors.textTertiary} />
+              <Text style={styles.extrasText}>{extras}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={[styles.taskHours, over && { color: Colors.danger }]}>
@@ -170,7 +209,8 @@ function TaskRow({ task, totals, showPct }: { task: Task; totals: HourTotals; sh
           <Text style={[styles.taskPct, over && { color: Colors.danger }]}>{percentUsed(totals)}%</Text>
         ) : null}
       </View>
-    </View>
+      <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+    </Pressable>
   );
 }
 
@@ -216,6 +256,9 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   lineNo: { width: 26, fontFamily: Fonts.bold, fontSize: 13, color: Colors.textTertiary, textAlign: 'right' },
+  taskTags: { flexDirection: 'row', gap: 6, alignItems: 'center', flexWrap: 'wrap' },
+  extras: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  extrasText: { fontFamily: Fonts.semibold, fontSize: 12, color: Colors.textTertiary },
   taskName: { fontFamily: Fonts.medium, fontSize: 15, color: Colors.text },
   taskHours: { fontFamily: Fonts.bold, fontSize: 15, color: Colors.text },
   taskPct: { fontFamily: Fonts.semibold, fontSize: 12, color: Colors.successDark },
