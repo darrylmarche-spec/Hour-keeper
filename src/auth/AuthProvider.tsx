@@ -20,6 +20,7 @@ function friendlyAuthError(msg: string): string {
   if (/email not confirmed/i.test(msg)) return 'Please confirm your email first — check your inbox for the link.';
   if (/already registered/i.test(msg)) return 'An account with that email already exists. Try signing in.';
   if (/fetch|network/i.test(msg)) return 'No connection. Signing in for the first time needs signal.';
+  if (/weak|password should|password is known/i.test(msg)) return 'That password is too easy to guess. Use at least 10 characters with letters and numbers.';
   return msg;
 }
 

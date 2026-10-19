@@ -5,12 +5,15 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
-import { ErrorBoundaryProps, router, Stack } from 'expo-router';
+import { ErrorBoundaryProps, router, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
+import { installGlobalErrorHandlers, reporter } from '@/beta/reporter';
+import { startUpdateChecks } from '@/beta/updates';
+import { UpdateBanner } from '@/components/UpdateBanner';
 import { Button } from '@/components/ui';
 import { DataProvider, useData, useDataMaybe, useMe, useSyncState } from '@/data/DataProvider';
 import Colors, { Fonts } from '@/theme/colors';
@@ -24,7 +27,8 @@ const STUCK_AFTER_MS = 10000;
 // If a screen fails to load or crashes (e.g. no signal before the web app has
 // finished saving itself for offline use), show a way out instead of a blank
 // page. Saved hours are on the device and aren't affected.
-export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  useEffect(() => reporter.report(error), [error]);
   return (
     <View style={styles.splash}>
       <Text style={styles.brand}>This screen didn’t load</Text>
@@ -63,11 +67,12 @@ export default function RootLayout() {
     return () => clearTimeout(t);
   }, []);
 
+  useEffect(() => installGlobalErrorHandlers(), []);
+
   useEffect(() => {
-    // Lets the web version open with no signal once it has been visited.
-    if (Platform.OS === 'web' && !__DEV__ && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
+    // Lets the web version open with no signal once it has been visited, and
+    // notices when a new release has been installed.
+    if (!__DEV__) startUpdateChecks();
   }, []);
 
   // A slow or failed font download must never trap people on this screen.
@@ -126,29 +131,39 @@ function SignedIn() {
 }
 
 function Screens({ signedIn, approved }: { signedIn: boolean; approved: boolean }) {
+  // Problem reports say which screen they came from.
+  const path = usePathname();
+  useEffect(() => {
+    reporter.screen = path;
+  }, [path]);
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background } }}>
-      <Stack.Protected guard={!signedIn}>
-        <Stack.Screen name="sign-in" />
-        <Stack.Screen name="sign-up" />
-      </Stack.Protected>
-      <Stack.Protected guard={signedIn && !approved}>
-        <Stack.Screen name="pending" />
-      </Stack.Protected>
-      <Stack.Protected guard={signedIn && approved}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="job/new" />
-        <Stack.Screen name="job/[id]/index" />
-        <Stack.Screen name="job/[id]/edit" />
-        <Stack.Screen name="job/[id]/team" />
-        <Stack.Screen name="job/[id]/task/[taskId]" />
-        <Stack.Screen name="job/[id]/report" />
-        <Stack.Screen name="templates" />
-      </Stack.Protected>
-      <Stack.Protected guard={signedIn}>
-        <Stack.Screen name="sync" />
-      </Stack.Protected>
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background } }}>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="sign-in" />
+          <Stack.Screen name="sign-up" />
+        </Stack.Protected>
+        <Stack.Protected guard={signedIn && !approved}>
+          <Stack.Screen name="pending" />
+        </Stack.Protected>
+        <Stack.Protected guard={signedIn && approved}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="job/new" />
+          <Stack.Screen name="job/[id]/index" />
+          <Stack.Screen name="job/[id]/edit" />
+          <Stack.Screen name="job/[id]/team" />
+          <Stack.Screen name="job/[id]/task/[taskId]" />
+          <Stack.Screen name="job/[id]/report" />
+          <Stack.Screen name="templates" />
+          <Stack.Screen name="feedback-inbox" />
+        </Stack.Protected>
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="sync" />
+          <Stack.Screen name="feedback" />
+        </Stack.Protected>
+      </Stack>
+      <UpdateBanner />
+    </View>
   );
 }
 
