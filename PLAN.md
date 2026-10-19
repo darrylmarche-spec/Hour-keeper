@@ -110,7 +110,38 @@ The import format will be built around the **template supplied by Darryl**.
    (crashes/unexpected errors with screen, phone and version), **Admin → Feedback & problems**,
    **Invite people**, "new version ready — Reload" banner, version shown in More.
    Run sheet: [BETA.md](BETA.md). Next: a small crew on one real job for 2–3 weeks
-6. **Later** — service & repair job types, app store builds, integrations (payroll/accounting)
+6. **After the beta**: see *After the beta* below
+
+## After the beta
+
+Suggested order: fix beta issues → company-ready → app stores → service jobs and connections.
+
+1. **Fix what the beta finds** (1–2 weeks)
+   - Work through Admin → Feedback & problems
+   - Adjust the lift template if hours pile up on the "Other" lines or tasks are missing
+2. **Company-ready** (before going past the beta crew)
+   - Supabase **Pro plan** (~US$25/month): daily backups and restore, leaked-password blocking,
+     no auto-pause, room for 100+ users and photos
+   - **Branches / regions**: group jobs and people by office or state, so PMs see their own patch;
+     proper time zones beyond Melbourne
+   - **Bulk onboarding**: invite and approve many people at once
+   - **Company branding**: name, logo and app icon in place of the "HK" placeholder
+3. **App Store & Play Store**
+   - Native iPhone / Android builds from the same code (EAS Build), no rewrite
+   - Needs an Apple Developer account (US$99/yr) and a Google Play account (US$25 once),
+     ideally in the company's name
+   - Gains: normal install, more reliable offline and camera on iPhone, optional push notifications
+4. **Service & repair jobs**
+   - Short jobs without a template: callout, time on site, what was fixed, parts notes
+   - Their own reports: time per callout, repeat visits to the same lift
+5. **Connections** (optional)
+   - Hours out to payroll / accounting (Xero, MYOB, ERP…), or jobs in from it
+   - Only once the target system is known
+
+**To decide during the beta**
+- [ ] Which of the above matters most to the PM and supervisor
+- [ ] Does the company already have Apple / Google developer accounts?
+- [ ] Which payroll / accounting system the company uses
 
 ## Template (from Darryl's sheet)
 
