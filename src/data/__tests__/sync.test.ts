@@ -178,6 +178,23 @@ describe('offline writes', () => {
   });
 });
 
+describe('saving a whole job at once', () => {
+  it('queues rows in order and sends parents first', async () => {
+    const { store, server, engine } = await setup();
+    await store.writeMany([
+      { table: 'jobs', row: { id: 'j1', name: 'Job' } as BaseRow },
+      { table: 'phases', row: { id: 'p1', job_id: 'j1', name: 'Site setup' } as BaseRow },
+      { table: 'tasks', row: { id: 't1', job_id: 'j1', phase_id: 'p1', name: 'Induction' } as BaseRow },
+      { table: 'tasks', row: { id: 't2', job_id: 'j1', phase_id: 'p1', name: 'Plumbing' } as BaseRow },
+    ]);
+    expect(store.pendingCount()).toBe(4);
+    expect(store.all('tasks')).toHaveLength(2);
+    await engine.sync();
+    expect(server.upserts).toEqual(['j1', 'p1', 't1', 't2']);
+    expect(store.pendingCount()).toBe(0);
+  });
+});
+
 describe('pulling from the server', () => {
   it('fetches every page of a large table', async () => {
     const { store, server, engine } = await setup();

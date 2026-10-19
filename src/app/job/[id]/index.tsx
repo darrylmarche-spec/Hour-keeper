@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { JobActions } from '@/components/JobActions';
 import { Button, CommandBar, EmptyState, goBackOrHome, Notice, Pill } from '@/components/ui';
 import { useMe, useRow, useTable } from '@/data/DataProvider';
 import { Task } from '@/data/schema';
@@ -70,6 +71,10 @@ export default function JobScreen() {
           {showPct ? <Stat label="Used" value={pctText(totals)} tone={variance(totals) > 0 ? 'bad' : undefined} /> : null}
         </View>
 
+        {managesJobs(me.role) ? <JobActions job={job} /> : null}
+
+        {liftLine(job) ? <Text style={styles.liftLine}>{liftLine(job)}</Text> : null}
+
         <View style={styles.notices}>
           {managesJobs(me.role) && quotedMismatch(job.quoted_total_hours, totals.sold) ? (
             <Notice tone="warn">
@@ -111,6 +116,18 @@ export default function JobScreen() {
       </ScrollView>
     </View>
   );
+}
+
+function liftLine(job: { stops?: number | null; travel_height_m?: number | null; quotation_number?: string; site_address: string; customer: string }) {
+  return [
+    job.stops ? `${job.stops} stops` : '',
+    job.travel_height_m ? `${formatHours(Number(job.travel_height_m))} m travel` : '',
+    job.quotation_number ? `Quote ${job.quotation_number}` : '',
+    job.customer,
+    job.site_address,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 function pctText(t: HourTotals) {
@@ -175,6 +192,7 @@ const styles = StyleSheet.create({
   },
   statValue: { fontFamily: Fonts.bold, fontSize: 24, color: Colors.text },
   notices: { padding: 12, gap: 8 },
+  liftLine: { fontFamily: Fonts.medium, fontSize: 13.5, color: Colors.textSecondary, paddingHorizontal: 12, paddingTop: 12 },
   phaseBar: {
     flexDirection: 'row',
     alignItems: 'center',

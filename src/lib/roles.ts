@@ -19,4 +19,5 @@ export const seesAllJobs = (r?: Role) => r === 'admin' || r === 'pm' || r === 's
 // Percentages and cross-job comparison are for PMs (and admins).
 export const seesPercentages = (r?: Role) => r === 'admin' || r === 'pm';
 
-export const managesJobs = (r?: Role) => r === 'admin' || r === 'pm';
+// Setting up jobs (create, edit, assign, release) — PMs, supervisors, admins.
+export const managesJobs = (r?: Role) => r === 'admin' || r === 'pm' || r === 'supervisor';

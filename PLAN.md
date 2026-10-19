@@ -40,7 +40,7 @@ Starts with **construction**. Built so **service & repair** can be added later
 | Role | Can do |
 |---|---|
 | **PM** | Create jobs, import/enter phases & tasks with sold hours, optional deadline, assign techs, release job, see **percentages** and **cross-job comparison** |
-| **Supervisor** | View jobs and **straight hour** comparison, create reports |
+| **Supervisor** | Create and edit jobs like a PM, view jobs and **straight hour** comparison, create reports |
 | **Tech** | See assigned jobs, log **their own** hours, add photos/files/comments, create reports |
 | **Admin** | Manage users and roles |
 
@@ -97,7 +97,8 @@ The import format will be built around the **template supplied by Darryl**.
 ## Build phases
 
 1. **Foundation** ✅ — project setup, look & feel, login & roles, offline storage + sync engine, sync status indicator
-2. **PM job setup** — create job, phases/tasks, Excel/CSV/PDF import with review screen, assign & release
+2. **PM job setup** ✅ — create job (template, import or blank), Excel/CSV/PDF import with a check screen,
+   edit (tasks with hours logged can't be removed), assign techs, release / complete / reopen, save as template — all offline
 3. **Tech logging** — hours, photos, files, comments, edit history; all offline
 4. **Reports** — in-app reports, PDF export/share, PM percentages & cross-job comparison
 5. **Beta** — small crew, gather feedback
@@ -126,4 +127,7 @@ draft job **"Hightett Common Building F - Duplex"** (struck-out lines 16 & 17 le
 - [x] Supabase Auth: "Confirm email" off for the beta, Site URL set
 - [x] Confirm the Hightett total — task lines (216) are correct
 - [x] Remove the two test accounts
+- [x] Make `main` the default branch on GitHub
+- [ ] Highett demo job: the hours sheet is Building F (Duplex); the drawings are Building I, Lift 1 — confirm which job the drawing details belong to
+- [ ] Job numbers: is there a set format to check against?
 - [ ] Replace the placeholder "HK" app icon with a company one, if wanted
