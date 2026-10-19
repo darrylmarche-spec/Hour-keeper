@@ -99,7 +99,9 @@ The import format will be built around the **template supplied by Darryl**.
 1. **Foundation** ✅ — project setup, look & feel, login & roles, offline storage + sync engine, sync status indicator
 2. **PM job setup** ✅ — create job (template, import or blank), Excel/CSV/PDF import with a check screen,
    edit (tasks with hours logged can't be removed), assign techs, release / complete / reopen, save as template — all offline
-3. **Tech logging** — hours, photos, files, comments, edit history; all offline
+3. **Tech logging** ✅ — tap a task to log hours (day + hours + note), edit with an "Edited" tag and
+   full change history (PMs/supervisors can correct anyone's), photos (shrunk to ~1600 px), files and
+   comments per task; everything saved on the device first and sent at the next sync
 4. **Reports** — in-app reports, PDF export/share, PM percentages & cross-job comparison
 5. **Beta** — small crew, gather feedback
 6. **Later** — service & repair job types, app store builds, integrations (payroll/accounting)

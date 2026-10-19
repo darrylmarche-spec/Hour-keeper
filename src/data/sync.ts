@@ -5,7 +5,7 @@
 //        rejected and moves on, so one bad change never blocks the rest.
 //  pull: fetch rows changed since the last sync, table by table.
 
-import { Cursor, LocalStore } from './localStore';
+import { Cursor, LocalStore, OutboxItem } from './localStore';
 import { BaseRow, JOB_CHILD_TABLES, TableName, TABLES } from './schema';
 
 export type RemoteErrorKind = 'network' | 'auth' | 'rejected';
@@ -36,6 +36,13 @@ export interface SyncState {
   lastError: string | null;
 }
 
+export interface SyncHooks {
+  // Runs just before a queued change is sent, e.g. to upload an attachment's
+  // file before its row. Throw a RemoteError to stop (network) or refuse
+  // (rejected) the change, exactly as if the server had.
+  beforePush?(item: OutboxItem): Promise<void>;
+}
+
 const PAGE = 500;
 // Re-read a little history each run so a change committed slightly out of
 // order on the server is never skipped. Rows are merged by id, so re-reading
@@ -62,6 +69,7 @@ export class SyncEngine {
   constructor(
     private store: LocalStore,
     private remote: Remote,
+    private hooks: SyncHooks = {},
   ) {
     this.state = {
       phase: 'idle',
@@ -136,6 +144,7 @@ export class SyncEngine {
       if (!item) return;
       this.store.markInFlight(item.seq);
       try {
+        await this.hooks.beforePush?.(item);
         const serverRow = await this.remote.upsert(item.table, item.row);
         await this.store.ack(item.seq, serverRow);
       } catch (e) {

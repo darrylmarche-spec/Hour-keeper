@@ -335,6 +335,58 @@ describe('sync runs', () => {
   });
 });
 
+describe('files before rows', () => {
+  const att = { id: 'a1', job_id: 'job1', task_id: 'task1', time_entry_id: null, user_id: 'user1', storage_path: 'job1/a1/p.jpg', file_name: 'p.jpg', mime_type: 'image/jpeg', size_bytes: 10 };
+
+  it('runs the upload hook before the row and waits when the upload has no signal', async () => {
+    const storage = new MemoryStorage();
+    const store = new LocalStore(storage, 'hk:user1');
+    await store.load();
+    const server = new FakeServer();
+    const order: string[] = [];
+    let uploadOnline = false;
+    const engine = new SyncEngine(store, server, {
+      beforePush: async (item) => {
+        if (item.table !== 'attachments') return;
+        if (!uploadOnline) throw new RemoteError('network', 'Failed to fetch');
+        order.push('file');
+      },
+    });
+    const realUpsert = server.upsert.bind(server);
+    server.upsert = async (t, r) => {
+      order.push(`row:${t}`);
+      return realUpsert(t, r);
+    };
+    await store.write('attachments', att);
+    await engine.sync();
+    expect(engine.getState().phase).toBe('offline');
+    expect(server.tables.get('attachments')?.get('a1')).toBeUndefined();
+    expect(engine.getState().pending).toBe(1);
+
+    uploadOnline = true;
+    await engine.sync();
+    expect(order).toEqual(['file', 'row:attachments']);
+    expect(engine.getState().pending).toBe(0);
+  });
+
+  it('marks the change not saved when the file can’t be sent, and carries on', async () => {
+    const storage = new MemoryStorage();
+    const store = new LocalStore(storage, 'hk:user1');
+    await store.load();
+    const server = new FakeServer();
+    const engine = new SyncEngine(store, server, {
+      beforePush: async (item) => {
+        if (item.table === 'attachments') throw new RemoteError('rejected', 'file missing');
+      },
+    });
+    await store.write('attachments', att);
+    await store.write('time_entries', entry('e1', 2));
+    await engine.sync();
+    expect(engine.getState().rejected).toBe(1);
+    expect(server.tables.get('time_entries')!.get('e1')).toBeDefined();
+  });
+});
+
 describe('parseTs', () => {
   it('reads Postgres timestamps with microseconds', () => {
     expect(parseTs('2026-10-17T00:19:11.098123+00:00')).toBe(Date.parse('2026-10-17T00:19:11.098Z'));
