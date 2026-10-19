@@ -128,6 +128,6 @@ draft job **"Hightett Common Building F - Duplex"** (struck-out lines 16 & 17 le
 - [x] Confirm the Hightett total — task lines (216) are correct
 - [x] Remove the two test accounts
 - [x] Make `main` the default branch on GitHub
-- [ ] Highett demo job: the hours sheet is Building F (Duplex); the drawings are Building I, Lift 1 — confirm which job the drawing details belong to
+- [x] Highett demo job: drawing details (Project No., quote, address, 8 stops, 22.92 m travel) added — it's a demo, so Building F vs I doesn't matter
 - [ ] Job numbers: is there a set format to check against?
 - [ ] Replace the placeholder "HK" app icon with a company one, if wanted
