@@ -50,6 +50,9 @@ export interface Job extends BaseRow {
   job_type: JobType;
   status: JobStatus;
   quoted_total_hours: number | null;
+  quotation_number?: string;
+  stops?: number | null;
+  travel_height_m?: number | null;
   deadline: string | null;
   template_id?: string | null;
   created_by?: string | null;
@@ -166,7 +169,7 @@ export const JOB_CHILD_TABLES: TableName[] = [
 // Postgres numeric columns arrive as strings over REST.
 export const NUMERIC_COLUMNS: Partial<Record<TableName, string[]>> = {
   template_tasks: ['sold_hours'],
-  jobs: ['quoted_total_hours'],
+  jobs: ['quoted_total_hours', 'travel_height_m'],
   tasks: ['sold_hours'],
   time_entries: ['hours'],
   attachments: ['size_bytes'],
