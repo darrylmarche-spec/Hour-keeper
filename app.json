@@ -48,7 +48,8 @@
           "cameraPermission": "Hour Keeper uses the camera so you can take site photos for a job.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

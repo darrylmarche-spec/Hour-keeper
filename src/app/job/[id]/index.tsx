@@ -80,6 +80,18 @@ export default function JobScreen() {
 
         {managesJobs(me.role) ? <JobActions job={job} /> : null}
 
+        {job.status !== 'draft' ? (
+          <Pressable
+            onPress={() => router.push({ pathname: '/job/[id]/report', params: { id: job.id } })}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.reportLink, pressed && { backgroundColor: Colors.surfacePressed }]}
+          >
+            <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
+            <Text style={styles.reportText}>Sold vs actual report · PDF</Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+          </Pressable>
+        ) : null}
+
         {liftLine(job) ? <Text style={styles.liftLine}>{liftLine(job)}</Text> : null}
 
         <View style={styles.notices}>
@@ -232,6 +244,16 @@ const styles = StyleSheet.create({
   },
   statValue: { fontFamily: Fonts.bold, fontSize: 24, color: Colors.text },
   notices: { padding: 12, gap: 8 },
+  reportLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  reportText: { flex: 1, fontFamily: Fonts.semibold, fontSize: 15, color: Colors.primary },
   liftLine: { fontFamily: Fonts.medium, fontSize: 13.5, color: Colors.textSecondary, paddingHorizontal: 12, paddingTop: 12 },
   phaseBar: {
     flexDirection: 'row',
