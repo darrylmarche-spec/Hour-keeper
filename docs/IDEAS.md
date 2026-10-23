@@ -33,6 +33,25 @@ This file is ideas only. The build chat decides how and when to build them.
 - Why: part of being company-ready. The crew never sees it; it just
   stops broken updates reaching them.
 
+### 4. Remote sign-out of a lost or stolen phone
+
+- An admin can sign out a lost or stolen phone in one action.
+- Honest limit: because the app works offline, the sign-out takes effect
+  when the phone next connects. Until then, that job's data stays on the
+  phone. Say this plainly in the pitch.
+- Why: head office IT will ask about this before approving the app.
+
+### 5. Built for Schindler, not for selling
+
+- Hour Keeper is an internal Schindler tool, not software sold to other
+  companies.
+- Group jobs and people by branch or region (already in `PLAN.md`), not
+  as separate customer companies.
+- No per-user billing.
+- Why: keeps the app simple, and avoids building for a business case
+  that doesn't exist. Selling outside Schindler would be a separate
+  decision, starting with who owns the software.
+
 ## Parked
 
 - **AI agents / MCP:** possible later on the office side only, read-only
@@ -46,6 +65,8 @@ This file is ideas only. The build chat decides how and when to build them.
 - Name (working title).
 - What field or time systems Schindler already has.
 - Which payroll system the company uses.
+- Company login: will IT want techs to sign in with their existing
+  Schindler work account (single sign-on)?
 - Which country the database is stored in (check the Supabase region).
 - Offline storage: `PLAN.md` says SQLite, the app's dependencies list
   AsyncStorage. Is that deliberate?
