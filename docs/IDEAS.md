@@ -15,6 +15,8 @@ This file is ideas only. The build chat decides how and when to build them.
   not by hiding things on screen.
 - Why: if the data is on the phone, someone will find it, and the app
   then looks like it was hiding something. Trust depends on this.
+- Sold hours are also commercially sensitive: they reveal how Schindler
+  prices work. Another reason they never reach the phone.
 - Build chat: confirm this is how it works today.
 
 ### 2. Monitoring means crash reports only, never activity logs
@@ -66,6 +68,14 @@ This file is ideas only. The build chat decides how and when to build them.
   tracking. `PLAN.md` lists optional push notifications for the
   app-store version, so this rule applies before that work starts.
 
+### 7. No live view of field activity
+
+- The office sees hours per job and task after the phone syncs, never a
+  live feed of who logged what, or when.
+- No live dashboards of field activity, even if a tool makes it easy.
+- Why: a live view is monitoring, which the design rules forbid.
+  Comparing sold vs actual is after-the-fact work anyway.
+
 ## Parked
 
 - **AI agents / MCP:** possible later on the office side only, read-only
@@ -85,6 +95,8 @@ This file is ideas only. The build chat decides how and when to build them.
 - Which payroll system the company uses.
 - Company login: will IT want techs to sign in with their existing
   Schindler work account (single sign-on)?
+- How long hour records are kept, who decides, and whether they count as
+  employment records. Ask HR or legal.
 - Which country the database is stored in (check the Supabase region).
 - Offline storage: `PLAN.md` says SQLite, the app's dependencies list
   AsyncStorage. Is that deliberate?
