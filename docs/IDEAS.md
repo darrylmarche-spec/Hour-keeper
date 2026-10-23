@@ -76,6 +76,23 @@ This file is ideas only. The build chat decides how and when to build them.
 - Why: a live view is monitoring, which the design rules forbid.
   Comparing sold vs actual is after-the-fact work anyway.
 
+### 8. Photos carry no location data
+
+- Phone cameras usually save GPS coordinates inside each photo file.
+  Remove them before upload, including photos picked from the gallery.
+- Build chat: confirm this. Shrinking a photo may or may not remove it.
+- Why: location data reaching the office is GPS tracking by accident,
+  against the design rules.
+
+### 9. Photos are trustworthy records
+
+- Keep the time each photo was taken.
+- Once synced, a photo can't be quietly replaced or deleted. Any change
+  is visible, the same as corrections.
+- Why: photos only protect a tech if they can be trusted. This records
+  when the photo was taken, not where the tech was; the tech chooses
+  when to take one.
+
 ## Parked
 
 - **AI agents / MCP:** possible later on the office side only, read-only
