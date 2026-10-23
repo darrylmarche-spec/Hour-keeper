@@ -93,6 +93,20 @@ This file is ideas only. The build chat decides how and when to build them.
   when the photo was taken, not where the tech was; the tech chooses
   when to take one.
 
+### 10. Nobody's work is ever silently lost or overwritten
+
+- When a tech's offline edit and a PM's correction clash on the same
+  entry, both versions stay in the history and the tech sees what
+  happened.
+- If the server refuses a tech's change, the tech is told in plain
+  words. It is never quietly dropped.
+- Why: this is "corrections are visible to everyone" applied to sync.
+  A tech who finds their hours changed without explanation stops
+  trusting the app.
+- Build chat: confirm what happens today. From the code, the edit that
+  syncs last wins, and it isn't clear the tech is told about a clash or
+  a refused change.
+
 ## Parked
 
 - **AI agents / MCP:** possible later on the office side only, read-only
@@ -104,6 +118,9 @@ This file is ideas only. The build chat decides how and when to build them.
   "which jobs ran over on this task type?") once there are many jobs.
   Jobs and tasks only, not techs' notes: notes protect the tech and
   must not become a way to dig for blame. Techs don't need search.
+- **Ready-made sync engine (PowerSync / ElectricSQL):** the app's own
+  sync already works. Don't switch during the beta. Revisit only if the
+  beta shows sync problems, or AsyncStorage struggles at company scale.
 
 ## Open questions
 
@@ -115,5 +132,6 @@ This file is ideas only. The build chat decides how and when to build them.
 - How long hour records are kept, who decides, and whether they count as
   employment records. Ask HR or legal.
 - Which country the database is stored in (check the Supabase region).
-- Offline storage: `PLAN.md` says SQLite, the app's dependencies list
-  AsyncStorage. Is that deliberate?
+- Offline storage: `PLAN.md` says SQLite, but the app uses its own sync
+  code with AsyncStorage. Is that deliberate, and does AsyncStorage hold
+  up once a tech has many jobs and photos?
