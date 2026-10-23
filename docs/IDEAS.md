@@ -52,6 +52,20 @@ This file is ideas only. The build chat decides how and when to build them.
   that doesn't exist. Selling outside Schindler would be a separate
   decision, starting with who owns the software.
 
+### 6. Push notifications only tell a tech what happened to them
+
+- Techs choose whether to turn notifications on. The app works fully
+  with them off.
+- Only tell a tech about something that happened to them, e.g. "You've
+  been added to a job" or "Your PM corrected one of your entries" (this
+  also supports corrections being visible).
+- Never: reminders to log hours, "you haven't logged today", overdue
+  warnings, or anything sent to the office about a tech's activity.
+- Offline is fine: a notification arrives when the phone next has signal.
+- Why: alerts that chase techs are exactly what makes an app feel like
+  tracking. `PLAN.md` lists optional push notifications for the
+  app-store version, so this rule applies before that work starts.
+
 ## Parked
 
 - **AI agents / MCP:** possible later on the office side only, read-only
@@ -59,6 +73,10 @@ This file is ideas only. The build chat decides how and when to build them.
   IT and AI policy approval first.
 - **Server-side functions for payroll:** revisit when payroll connections
   are planned, so payroll logins stay on the server, not on phones.
+- **Office-side search across past jobs:** search jobs and tasks (e.g.
+  "which jobs ran over on this task type?") once there are many jobs.
+  Jobs and tasks only, not techs' notes: notes protect the tech and
+  must not become a way to dig for blame. Techs don't need search.
 
 ## Open questions
 
