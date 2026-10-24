@@ -46,9 +46,36 @@ and what the tech sees.
 
 - Check what the beta's automatic problem reports and the feedback tool
   send.
-- **Pass:** only the error itself, the app version and the device type.
-  No list of screens visited, no record of taps, and no record of when
-  the person used the app.
+- **Pass:** only the error itself, the screen it happened on, the app
+  version and the device type. No list of screens visited, no record of
+  taps, and no record of when the person used the app.
 - **Fail:** any of that activity is collected.
 
-Report back on all four before the beta starts.
+## 5. iPhone can't wipe unsynced hours (web app)
+
+The beta runs as a web app. Safari can clear a website's stored data
+after a period without use unless the app is on the Home Screen.
+
+- Make "Add to Home Screen" a required beta setup step in `BETA.md`, not
+  a suggestion.
+- The app asks the browser to keep its data
+  (`navigator.storage.persist()`).
+- If the app is opened in a browser tab (not from the Home Screen) while
+  hours are waiting to sync, it says so in plain words.
+- **Pass:** all three are in place and tested on an iPhone.
+- **Fail:** a tech can log hours offline in a Safari tab with no warning.
+
+## 6. Live data is protected during AI-assisted building
+
+Once the beta starts, the database holds real hours from real techs.
+
+- The AI coding tool can't change the live database without Darryl
+  approving the change (e.g. a limited, per-project access token;
+  migrations reviewed before they run).
+- Every new table gets explicit access rules (RLS and API grants). Don't
+  rely on Supabase exposing new tables automatically.
+- **Pass:** both are true and written down.
+- **Fail:** the AI tool can write to live data unreviewed, or a table
+  has no explicit access rules.
+
+Report back on all six before the beta starts.

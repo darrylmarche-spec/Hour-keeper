@@ -107,6 +107,15 @@ This file is ideas only. The build chat decides how and when to build them.
   syncs last wins, and it isn't clear the tech is told about a clash or
   a refused change.
 
+### 11. Hour Keeper never makes automated decisions about people
+
+- No scores, flags, ratings or automatic judgements about a person.
+  Comparisons are of jobs and tasks, read by a PM after the fact.
+- Why: keeps it from feeling like tracking, and keeps privacy disclosures
+  simple (Australian rules on disclosing automated decisions are due
+  from 10 Dec 2026 — confirm with Schindler legal).
+- See `docs/PRIVACY-SUMMARY.md`.
+
 ## Parked
 
 - **AI agents / MCP:** possible later on the office side only, read-only
@@ -121,6 +130,10 @@ This file is ideas only. The build chat decides how and when to build them.
 - **Ready-made sync engine (PowerSync / ElectricSQL):** the app's own
   sync already works. Don't switch during the beta. Revisit only if the
   beta shows sync problems, or AsyncStorage struggles at company scale.
+- **Private distribution:** give the app only to Schindler staff through
+  Apple's and Google's company channels (e.g. Apple Business Manager
+  custom apps, Managed Google Play), not public store listings. Depends
+  on how Schindler manages work phones. For the app-store stage.
 
 ## Open questions
 
@@ -131,6 +144,11 @@ This file is ideas only. The build chat decides how and when to build them.
   Schindler work account (single sign-on)?
 - How long hour records are kept, who decides, and whether they count as
   employment records. Ask HR or legal.
+- Do techs use work phones or personal phones? Personal phones make
+  privacy more sensitive.
+- Does Schindler manage its work phones centrally (device management)?
+- What does company login (single sign-on) cost on Supabase? Check
+  before promising it in the pitch.
 - Which country the database is stored in (check the Supabase region).
 - Offline storage: `PLAN.md` says SQLite, but the app uses its own sync
   code with AsyncStorage. Is that deliberate, and does AsyncStorage hold
