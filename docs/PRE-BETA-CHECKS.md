@@ -54,15 +54,19 @@ and what the tech sees.
 ## 5. iPhone can't wipe unsynced hours (web app)
 
 The beta runs as a web app. Safari can clear a website's stored data
-after a period without use unless the app is on the Home Screen.
+after a period without use unless the app is on the Home Screen. Also, on
+iPhone a Safari tab and the Home Screen app keep separate storage: hours
+logged in a tab stay stuck in that tab.
 
-- Make "Add to Home Screen" a required beta setup step in `BETA.md`, not
-  a suggestion.
+- Make "Add to Home Screen, then sign in from the Home Screen app" a
+  required beta setup step in `BETA.md`, not a suggestion. The order
+  matters: add first, sign in second.
 - The app asks the browser to keep its data
   (`navigator.storage.persist()`).
 - If the app is opened in a browser tab (not from the Home Screen) while
   hours are waiting to sync, it says so in plain words.
-- **Pass:** all three are in place and tested on an iPhone.
+- **Pass:** all three are in place and tested on an iPhone, including
+  the setup order.
 - **Fail:** a tech can log hours offline in a Safari tab with no warning.
 
 ## 6. Live data is protected during AI-assisted building
