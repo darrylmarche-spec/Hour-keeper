@@ -19,8 +19,20 @@ export interface OutboxItem {
   queuedAt: string;
   attempts: number;
   // Set when the server refused the change (not a connection problem).
-  // The item stays so the user can see it and decide to discard it.
+  // The item stays so the user can see it and decide what to do with it.
   rejected?: string;
+  // What the row looked like on the server when this edit began. Only the
+  // fields that differ from it are sent, and only if nobody else has changed
+  // those fields meanwhile. Missing for new rows, and for changes queued by an
+  // older version of the app (those are sent whole, as before).
+  base?: BaseRow;
+  // The row was edited again while an earlier edit of it was still being sent;
+  // its base is the server's copy once that earlier edit is accepted.
+  baseFromAck?: boolean;
+  // The person chose "use my version" after a clash: send it without the check.
+  force?: boolean;
+  // After a clash: the other person's version, as the server has it now.
+  theirs?: BaseRow;
 }
 
 export interface Cursor {
@@ -166,27 +178,35 @@ export class LocalStore {
     if (!items.length) return;
     const touched = new Set<TableName>();
     for (const { table, row } of items) {
+      const previous = this.tables.get(table)!.get(row.id);
       this.tables.get(table)!.set(row.id, row);
       this.changed(table);
       touched.add(table);
 
       // Collapse repeated edits to the same row into one queued change,
-      // unless that change is being sent right now.
+      // unless that change is being sent right now. The original base is kept:
+      // it is what the row was when the first of these edits began.
       const existing = this.outbox.find(
-        (i) => i.table === table && i.row.id === row.id && i.seq !== this.inFlightSeq,
+        (i) => i.table === table && i.row.id === row.id && i.seq !== this.inFlightSeq && !i.rejected,
       );
       if (existing) {
         existing.row = row;
-        existing.rejected = undefined;
         existing.attempts = 0;
       } else {
-        this.outbox.push({
+        const item: OutboxItem = {
           seq: this.nextSeq++,
           table,
           row,
           queuedAt: new Date().toISOString(),
           attempts: 0,
-        });
+        };
+        // An edit to a row the server already has: remember what it was.
+        if (previous?.updated_at) {
+          const sending = this.outbox.some((i) => i.table === table && i.row.id === row.id && i.seq === this.inFlightSeq);
+          if (sending) item.baseFromAck = true;
+          else item.base = { ...previous };
+        }
+        this.outbox.push(item);
       }
     }
     await Promise.all([...Array.from(touched, (t) => this.saveTableNow(t)), this.saveOutbox()]);
@@ -212,7 +232,7 @@ export class LocalStore {
   }
 
   // Waiting to be sent (a change the server already refused doesn't count).
-  private hasUnsent(table: TableName, id: string): boolean {
+  hasUnsent(table: TableName, id: string): boolean {
     return this.outbox.some((i) => i.table === table && i.row.id === id && !i.rejected);
   }
 
@@ -230,7 +250,16 @@ export class LocalStore {
   async ack(seq: number, serverRow: BaseRow | null): Promise<void> {
     const item = this.outbox.find((i) => i.seq === seq);
     this.outbox = this.outbox.filter((i) => i.seq !== seq);
-    if (item && serverRow && !this.hasPending(item.table, item.row.id)) {
+    if (item) {
+      // An edit made while this one was being sent now starts from the server's copy.
+      for (const other of this.outbox) {
+        if (other.table === item.table && other.row.id === item.row.id && other.baseFromAck) {
+          other.baseFromAck = false;
+          if (serverRow) other.base = { ...serverRow };
+        }
+      }
+    }
+    if (item && serverRow && !this.hasUnsent(item.table, item.row.id)) {
       this.tables.get(item.table)!.set(serverRow.id, serverRow);
       this.changed(item.table);
       this.saveTableSoon(item.table);
@@ -239,14 +268,61 @@ export class LocalStore {
     this.emit();
   }
 
-  async reject(seq: number, reason: string): Promise<void> {
+  // `theirs` is given when the refusal is a clash: someone else changed the same
+  // thing. Their version is shown on this device from now on; the person's own
+  // version stays in the list, untouched, until they choose.
+  async reject(seq: number, reason: string, theirs?: BaseRow): Promise<void> {
     const item = this.outbox.find((i) => i.seq === seq);
     if (item) {
       item.rejected = reason;
       item.attempts += 1;
+      // Edits queued behind this one were made on top of it; they start from the same base.
+      for (const other of this.outbox) {
+        if (other.table === item.table && other.row.id === item.row.id && other.baseFromAck) {
+          other.baseFromAck = false;
+          other.base = item.base ? { ...item.base } : undefined;
+        }
+      }
+      if (theirs) {
+        item.theirs = theirs;
+        if (!this.hasUnsent(item.table, item.row.id)) {
+          this.tables.get(item.table)!.set(theirs.id, theirs);
+          this.changed(item.table);
+          await this.saveTableNow(item.table);
+        }
+      }
     }
     await this.saveOutbox();
     this.emit();
+  }
+
+  // After a clash the person picks one:
+  //  'theirs' keeps what is on the server now and lets go of their own version.
+  //  'mine'   sends their version anyway (the server records both in the history).
+  async resolveConflict(seq: number, choice: 'mine' | 'theirs'): Promise<void> {
+    const item = this.outbox.find((i) => i.seq === seq);
+    if (!item) return;
+    // A newer edit of the same row may be queued behind this one; it stays on top.
+    const newerEdit = this.outbox.some((i) => i.seq !== seq && i.table === item.table && i.row.id === item.row.id && !i.rejected);
+    if (choice === 'theirs') {
+      this.outbox = this.outbox.filter((i) => i.seq !== seq);
+    } else {
+      item.rejected = undefined;
+      item.force = true;
+      item.attempts = 0;
+      if (!newerEdit) {
+        this.tables.get(item.table)!.set(item.row.id, item.row);
+        this.changed(item.table);
+        await this.saveTableNow(item.table);
+      }
+    }
+    await this.saveOutbox();
+    this.emit();
+  }
+
+  // Why a change to this row was refused, if it was.
+  rejectedReason(table: TableName, id: string): string | null {
+    return this.outbox.find((i) => i.table === table && i.row.id === id && i.rejected)?.rejected ?? null;
   }
 
   async noteAttempt(seq: number): Promise<void> {
@@ -274,11 +350,14 @@ export class LocalStore {
 
   // Merge rows from the server. A row with a local change still waiting to be
   // sent keeps the local version — the user's latest edit wins until it's sent.
+  // A change the server refused is no longer waiting: the server's version is
+  // shown, and the refused change stays listed (with the reason) until the
+  // person deals with it.
   applyRemote(table: TableName, rows: BaseRow[]): void {
     if (!rows.length) return;
     const map = this.tables.get(table)!;
     for (const row of rows) {
-      if (this.hasPending(table, row.id)) continue;
+      if (this.hasUnsent(table, row.id)) continue;
       map.set(row.id, row);
     }
     this.changed(table);

@@ -37,6 +37,7 @@
     "read-excel-file": "^9.3.12"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@types/jest": "^29.5.14",
     "@types/papaparse": "^5.5.2",
     "@types/react": "~19.3.0",
@@ -52,7 +53,7 @@
     "ios": "expo start --ios",
     "web": "node scripts/copy-pdf-worker.js && expo start --web",
     "build:web": "node scripts/copy-pdf-worker.js && EXPO_PUBLIC_BUILD_ID=${VERCEL_GIT_COMMIT_SHA:-local} expo export -p web && node scripts/build-sw.js",
-    "test": "jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint"
   },

@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
-import { CommandBar, EmptyState, Pill, SectionBar } from '@/components/ui';
-import { useMe, useTable } from '@/data/DataProvider';
+import { CommandBar, EmptyState, Notice, Pill, SectionBar } from '@/components/ui';
+import { useMe, useSyncState, useTable } from '@/data/DataProvider';
 import { Job, JobStatus } from '@/data/schema';
 import { formatHours, percentUsed } from '@/data/totals';
 import { managesJobs, ROLE_LABELS, seesAllJobs, seesPercentages, STATUS_LABELS } from '@/lib/roles';
@@ -17,6 +17,7 @@ export default function JobsScreen() {
   const members = useTable('job_members');
   const tasks = useTable('tasks');
   const entries = useTable('time_entries');
+  const sync = useSyncState();
 
   const sections = useMemo(() => {
     const mine = seesAllJobs(me.role)
@@ -56,6 +57,19 @@ export default function JobsScreen() {
           ) : undefined
         }
       />
+      {sync.rejected > 0 ? (
+        <Pressable
+          onPress={() => router.push('/sync')}
+          accessibilityRole="button"
+          accessibilityLabel={`${sync.rejected} changes weren’t saved. See why.`}
+          style={styles.notSaved}
+        >
+          <Notice tone="bad">
+            {sync.rejected === 1 ? '1 change wasn’t saved' : `${sync.rejected} changes weren’t saved`}. Tap to see why and
+            what to do. Nothing has been lost.
+          </Notice>
+        </Pressable>
+      ) : null}
       <SectionList
         sections={sections}
         keyExtractor={(i) => i.job.id}
@@ -122,6 +136,7 @@ function JobRow({ job, sold, actual, showPercent }: { job: Job; sold: number; ac
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  notSaved: { padding: 12, paddingBottom: 4 },
   newBtn: {
     flexDirection: 'row',
     alignItems: 'center',

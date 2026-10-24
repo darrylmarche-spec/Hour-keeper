@@ -1,13 +1,13 @@
 # Pre-beta check results
 
 Results for the six checks in `docs/PRE-BETA-CHECKS.md`. Updated in each
-pull request that works on one. Last updated 24 Oct 2026.
+pull request that works on one. Last updated 25 Oct 2026.
 
 | # | Check | Status |
 |---|-------|--------|
 | 1 | Quoted figures never reach a tech's phone | **Fail today.** Fix not built yet. |
 | 2 | Photos carry no location data | **Fixed and passing** (tested in the web app; not yet on a real phone camera) |
-| 3 | Nobody's work is silently lost or overwritten | Not yet checked or fixed |
+| 3 | Nobody's work is silently lost or overwritten | **Fixed and passing** (a: clash, b: refused change, c: deleted while offline). Tested on a real Postgres, in the sync tests and in a two-browser run. Not yet on real phones. |
 | 4 | Problem reports don't record activity | **Pass** |
 | 5 | iPhone can't wipe unsynced hours (web app) | Not started |
 | 6 | Live data is protected during AI-assisted building | **Open: needs a decision from Darryl** (see below) |
@@ -65,6 +65,47 @@ plain text file was unchanged; the fake photo was refused.
   field before removing the rest. Not built yet.
 - Files that aren't images (PDFs, spreadsheets) are uploaded unchanged and
   can carry their own hidden details.
+
+## 3. Nobody's work is silently lost or overwritten
+
+**Before the fix: fail on (a) and (c).** The app sent the whole row, so the
+last change to reach the server won: a tech's offline edit of the hours
+could silently overwrite a PM's correction (or the other way round), and
+a tech could log hours against a task a PM had removed.
+
+**What it does now (idea 10).** An edit is sent as only the fields the
+person changed, along with what those fields were when they started. The
+server applies it only if nobody else has changed those same fields.
+
+| Case | What ends up saved | History | What the tech sees |
+|---|---|---|---|
+| **a. Clash, different fields** (tech adds a note, PM corrects hours) | Both changes | Edit recorded | Nothing to do; they see the PM's hours and their own note |
+| **a. Clash, same field** (tech 6→5, PM 6→7) | The PM's 7 stays. The tech's 5 is held on the phone, not applied | Nothing overwritten | "Not saved" on the entry, a red banner on the Jobs list, and on the Sync screen: "Hours: you changed it to 5 hrs, it is now 7 hrs" with two buttons |
+| **a. …tech picks "Use my version instead"** | The tech's hours win; the PM's note (which they never touched) is kept | Both versions: 7→8 (PM) then 8→5 (tech) | The entry's "See what changed" shows it |
+| **a. …tech picks "Keep what's there now"** | The server is untouched | Unchanged | The held change is removed on purpose, by the tech's choice |
+| **b. Refused change** (job completed, or taken off the job) | Nothing saved | None | The change stays on the phone with: "This wasn't saved. The job may have been completed, or you may have been taken off it… tell your PM", and Discard |
+| **c. Task removed while offline** | Nothing saved on the removed task | None | "This task was removed from the job, so these hours can't be saved on it. Ask your PM which task they belong on." |
+
+**Fix for (c).** Migration `0012_time_entry_task_guard.sql` makes the
+database refuse hours on a removed task or a task from another job. The
+test for it failed before the migration and passes after. Not applied to
+the live database until Darryl approves the pull request (check 6).
+
+**How it was tested.**
+- 11 tests on a real Postgres (PGlite, in memory) running every migration:
+  both versions kept in `time_entry_edits`, completed jobs refuse changes,
+  a tech can't change someone else's entry, and (c).
+- Sync tests (fake server behaving like the real one) for field-level
+  sends, different-field edits both surviving, a clash held and not
+  overwritten, both choices, edits made while the first is in flight, an
+  app close with a held clash, and older queued changes with no record of
+  the starting values.
+- A two-browser run (tech offline, PM online) for each case, with
+  screenshots of the entry, the Jobs banner and the Sync screen.
+
+**Not covered.** Real phones; two people on the same field while both are
+online at the same moment (the database decides, and the later one is
+shown the clash on its next sync).
 
 ## 4. Problem reports don't record activity
 
