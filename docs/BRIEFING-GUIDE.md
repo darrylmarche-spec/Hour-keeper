@@ -28,11 +28,13 @@ distributed.
   19.3.0, Expo Router 58.0.23 (typed routes on), TypeScript 6.0.3,
   `react-native-web` 0.21.4, Supabase JS client 2.118.0. `app.json`
   version is `0.1.0` (shown in the app with the build id).
-- **Checks:** Jest 29 with ts-jest (8 suites, 75 tests), TypeScript and
-  `expo lint`, run by the build chat before each pull request. There is
-  no CI workflow in the repo (no `.github/`); Vercel only builds.
-  Browser end-to-end tests (Playwright against a fake backend) live
-  outside the repo (`.e2e/`, gitignored).
+- **Checks:** Jest 29 with ts-jest (9 suites, 85 tests), TypeScript and
+  `expo lint`. A GitHub Actions workflow (`.github/workflows/checks.yml`,
+  Node 22) runs all three on every pull request and every push to
+  `main`; the build chat also runs them first. Unconfirmed: whether
+  GitHub is set to block merging when they fail (branch protection).
+  Vercel builds separately. Browser end-to-end tests (Playwright against
+  a fake backend) live outside the repo (`.e2e/`, gitignored).
 - **Web:** `web.output: "single"` (static single-page app, built with
   `expo export -p web`). Own service worker: `scripts/build-sw.js` writes
   `dist/sw.js` at build, `src/beta/updates.ts` registers it (production
@@ -107,21 +109,30 @@ distributed.
 - **What a tech's phone receives today:** row-level security works per
   row, not per column. So a tech's phone currently downloads and shows
   the sold hours of each task, the job's quoted total, and every
-  assigned tech's hours on that job (the report lists hours by person).
-  Percentages and Compare jobs are hidden in the app, but
+  assigned tech's hours on that job (task screen entries; the report
+  shows a tech only their own line, and the office's list is in name
+  order, not ranked by hours). Percentages and Compare jobs are hidden
+  in the app, but
   database-level blocking of quoted figures (idea 1) is not built yet
   (pre-beta check 1).
-- **Photos and files:** photos from the camera or library are shrunk on
-  the device (phone or browser) to at most 1600 px wide and re-saved as
-  JPEG at quality 0.7 (`expo-image-manipulator`). If shrinking fails, the
-  original is kept. Other files are uploaded unchanged. 25 MB limit per
-  file. Stored in a private Supabase Storage bucket `attachments`, at
-  `{job}/{attachment}/{name}`; viewed through 5-minute signed links and
-  kept on the device after first viewing. Nothing in the code removes
-  location data on purpose; whether re-saving drops it is untested
-  (pre-beta check 2). The photo's time is the phone's clock when it was
-  added. The person who added a photo can remove it (the record is
-  marked deleted; the file stays in storage).
+- **Photos and files:** every image, whether from the camera, the library
+  or the file picker, is cleaned of hidden data before it is saved or
+  uploaded (`src/files/imageClean.ts`). Photos are shrunk on the device
+  (phone or browser) to at most 1600 px wide and re-saved as JPEG at
+  quality 0.7 (`expo-image-manipulator`). Cleaning keeps only the picture,
+  its colour profile and which way up it is, and removes EXIF (GPS,
+  camera, time), XMP, IPTC, comments and anything after the end of the
+  image. An image that can't be cleaned is refused, not uploaded. Other
+  files (PDFs, spreadsheets) are uploaded unchanged and aren't cleaned.
+  25 MB limit per file. Stored in a private Supabase Storage bucket
+  `attachments`, at `{job}/{attachment}/{name}`; viewed through 5-minute
+  signed links and kept on the device after first viewing. Tested with
+  GPS-tagged test photos in the web app; not yet on a real phone camera
+  (`docs/PRE-BETA-RESULTS.md`). The capture time is not kept, because it
+  was in the removed data. The photo's time is the phone's clock when it
+  was added. The person who added a photo can remove it (the record is
+  marked deleted; the file stays in storage), and can overwrite their own
+  uploaded file (idea 9 would close this).
 - **Documents:** PDF reports. On web: jsPDF 4.2 with jspdf-autotable 5,
   loaded only when needed and built before the Share or Save button is
   pressed, so Share works straight from the tap; Save is an in-page
@@ -138,16 +149,18 @@ distributed.
 - **AI in the app:** none (no AI library or call in `package.json`,
   `src/` or `supabase/`). AI is only used to build the app.
 - **Settled but not built yet:** from `docs/IDEAS.md`: database-level
-  blocking of quoted figures (1), automated checks on every change (3),
-  remote sign-out (4), opt-in push notifications (6), no location data
-  in photos (8), photos that can't be quietly removed (9), and keeping
+  blocking of quoted figures (1), remote sign-out (4), opt-in push
+  notifications (6), photos that can't be quietly removed (9), and keeping
   both versions and telling the tech when edits clash (10; today the
   last change to reach the server wins, and a refused change only shows
-  as "not saved" on the sync badge). Idea 2 (crash reports only) matches
-  what is built.
-- **Not confirmed:** Vercel plan; Supabase Auth dashboard settings; how
-  the app behaves on a real iPhone or Android phone (only web has been
-  tested); photo location data; sync-clash behaviour.
+  as "not saved" on the sync badge). Built: idea 2 (crash reports only),
+  idea 3 (the checks workflow, first run pending), idea 8 (photo cleaning,
+  web-tested) and the no-ranking part of idea 11. Results of the pre-beta
+  checks are in `docs/PRE-BETA-RESULTS.md`.
+- **Not confirmed:** Vercel plan; Supabase Auth dashboard settings; GitHub
+  branch protection; how the app behaves on a real iPhone or Android
+  phone (only web has been tested, including photo cleaning, which has
+  only seen test photos); sync-clash behaviour.
 
 ## Design rules (never change)
 

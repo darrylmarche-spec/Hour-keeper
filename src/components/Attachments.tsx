@@ -8,7 +8,7 @@ import { Attachment, Job } from '@/data/schema';
 import { attachmentUrl } from '@/files/attachments';
 import { putFile } from '@/files/fileCache';
 import { formatBytes, isImage, storagePath } from '@/files/naming';
-import { NewFile, pickDocuments, pickPhotos, takePhoto } from '@/files/pickAttachment';
+import { NewFile, pickDocuments, PickResult, pickPhotos, takePhoto } from '@/files/pickAttachment';
 import { confirm } from '@/lib/confirm';
 import { supabase } from '@/lib/supabase';
 import Colors, { Fonts } from '@/theme/colors';
@@ -34,11 +34,12 @@ export function Attachments({
   const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Attachment | null>(null);
 
-  const add = async (label: string, pick: () => Promise<NewFile[]>) => {
+  const add = async (label: string, pick: () => Promise<PickResult>) => {
     setError(null);
     let files: NewFile[];
+    let skipped: string[];
     try {
-      files = await pick();
+      ({ files, skipped } = await pick());
     } catch (e) {
       setError(
         e instanceof Error && e.message === 'camera-permission'
@@ -47,10 +48,17 @@ export function Attachments({
       );
       return;
     }
-    if (!files.length) return;
+    const notes: string[] = [];
+    if (skipped.length) {
+      notes.push(
+        `${skipped.map((n) => `“${n}”`).join(', ')} couldn’t be prepared as ${skipped.length === 1 ? 'a photo' : 'photos'}, so ${skipped.length === 1 ? 'it was' : 'they were'} not added. Try taking the photo again.`,
+      );
+    }
     const tooBig = files.filter((f) => f.bytes.byteLength > MAX_BYTES);
     const ok = files.filter((f) => f.bytes.byteLength <= MAX_BYTES);
-    if (tooBig.length) setError(`${tooBig.map((f) => f.name).join(', ')} ${tooBig.length === 1 ? 'is' : 'are'} over 25 MB and wasn’t added.`);
+    if (tooBig.length) notes.push(`${tooBig.map((f) => f.name).join(', ')} ${tooBig.length === 1 ? 'is' : 'are'} over 25 MB and wasn’t added.`);
+    if (notes.length) setError(notes.join(' '));
+    if (!ok.length) return;
     setBusy(label);
     try {
       const rows: Attachment[] = [];

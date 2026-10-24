@@ -83,11 +83,13 @@ export function reportDoc(r: JobReport, opts: { showPercent: boolean }): ReportD
   ];
   if (r.people.length) {
     tables.push({
-      heading: 'Hours by person',
+      heading: r.peopleScope === 'self' ? 'Your hours' : 'Hours by person',
       columns: ['Person', 'Days on site', 'Hours'],
       numeric: [1, 2],
       rows: r.people.map((p) => [p.name, String(p.days), h(p.hours)]),
     });
+  }
+  if (r.days.length) {
     tables.push({
       heading: 'Hours by day',
       columns: ['Day', 'People', 'Hours'],
