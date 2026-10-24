@@ -56,11 +56,13 @@ describe('job report', () => {
     expect(r.extraProductive).toMatchObject({ sold: 0, actual: 2, pct: null });
     expect(r.extraNonProductive.actual).toBe(1.5);
   });
-  it('breaks hours down by person and by day', () => {
+  it('breaks hours down by person (alphabetical, never ranked) and by day', () => {
+    // sam@x has more hours (7) than Terry Tech (6.3), but the list is by name, not by hours.
     expect(r.people).toEqual([
-      { userId: 'u1', name: 'Terry Tech', hours: 6.3, days: 3 },
       { userId: 'u2', name: 'sam@x', hours: 7, days: 2 },
-    ].sort((a, b) => b.hours - a.hours));
+      { userId: 'u1', name: 'Terry Tech', hours: 6.3, days: 3 },
+    ]);
+    expect(r.peopleScope).toBe('all');
     expect(r.days).toEqual([
       { day: '2026-10-14', hours: 9.5, people: 2 },
       { day: '2026-10-15', hours: 0.3, people: 1 },
@@ -68,6 +70,28 @@ describe('job report', () => {
     ]);
     expect([r.firstDay, r.lastDay]).toEqual(['2026-10-14', '2026-10-16']);
     expect(r.editedEntries).toBe(1);
+  });
+  it('shows a tech only their own hours, with the job-level totals unchanged', () => {
+    const mine = buildJobReport({ job: j, phases, tasks, entries, profiles: people, comments, attachments: [], viewerId: 'u1', peopleScope: 'self' });
+    expect(mine.people).toEqual([{ userId: 'u1', name: 'Terry Tech', hours: 6.3, days: 3 }]);
+    expect(mine.peopleScope).toBe('self');
+    expect(mine.totals).toEqual(r.totals);
+    expect(mine.days).toEqual(r.days);
+    const doc = reportDoc(mine, { showPercent: false });
+    const table = doc.tables.find((t) => t.heading === 'Your hours')!;
+    expect(table.rows).toEqual([['Terry Tech', '3', '6.3']]);
+    expect(doc.tables.some((t) => t.heading === 'Hours by person')).toBe(false);
+    // A colleague's name can still appear as the author of a comment (a shared team thread),
+    // but never next to hours.
+    const outsideComments = doc.tables.filter((t) => t.heading !== 'Comments');
+    expect(JSON.stringify(outsideComments)).not.toContain('sam@x');
+  });
+  it('keeps the day table for a tech who has not logged anything yet', () => {
+    const none = buildJobReport({ job: j, phases, tasks, entries, profiles: people, comments: [], attachments: [], viewerId: 'someone-else', peopleScope: 'self' });
+    expect(none.people).toEqual([]);
+    const doc = reportDoc(none, { showPercent: false });
+    expect(doc.tables.map((t) => t.heading)).toContain('Hours by day');
+    expect(doc.tables.map((t) => t.heading)).not.toContain('Your hours');
   });
   it('lists comments oldest first with their task', () => {
     expect(r.comments.map((c) => `${c.who}: ${c.task}: ${c.body}`)).toEqual([

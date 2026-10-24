@@ -43,6 +43,8 @@ export interface CommentLine {
   body: string;
 }
 
+export type PeopleScope = 'all' | 'self';
+
 export interface JobReport {
   job: Job;
   generatedAt: string;
@@ -51,7 +53,10 @@ export interface JobReport {
   extraProductive: Line;
   extraNonProductive: Line;
   phases: PhaseLine[];
+  // Who worked the hours. Alphabetical, never ranked by hours (that would be a
+  // league table of people). 'self' = a tech's own line only.
   people: PersonLine[];
+  peopleScope: PeopleScope;
   days: DayLine[];
   comments: CommentLine[];
   photos: number;
@@ -80,6 +85,10 @@ export interface ReportInput {
   profiles: readonly Profile[];
   comments: readonly Comment[];
   attachments: readonly Attachment[];
+  // Whose report this is. With peopleScope 'self', the people table shows only
+  // this person (techs see their own hours, not their colleagues').
+  viewerId?: string;
+  peopleScope?: PeopleScope;
   now?: Date;
 }
 
@@ -133,9 +142,10 @@ export function buildJobReport(input: ReportInput): JobReport {
     d.people.add(e.user_id);
     byDay.set(e.work_date, d);
   }
-  const people = Array.from(byPerson, ([userId, v]) => ({ userId, name: nameOf(userId), hours: v.cents / 100, days: v.days.size })).sort(
-    (a, b) => b.hours - a.hours || a.name.localeCompare(b.name),
-  );
+  const peopleScope = input.peopleScope ?? 'all';
+  const people = Array.from(byPerson, ([userId, v]) => ({ userId, name: nameOf(userId), hours: v.cents / 100, days: v.days.size }))
+    .filter((p) => peopleScope === 'all' || p.userId === input.viewerId)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || a.userId.localeCompare(b.userId));
   const days = Array.from(byDay, ([day, v]) => ({ day, hours: v.cents / 100, people: v.people.size })).sort((a, b) =>
     a.day.localeCompare(b.day),
   );
@@ -160,6 +170,7 @@ export function buildJobReport(input: ReportInput): JobReport {
     extraNonProductive: line(...kindSums.extra_non_productive),
     phases: phaseLines,
     people,
+    peopleScope,
     days,
     comments,
     photos: atts.filter((a) => a.mime_type.startsWith('image/')).length,

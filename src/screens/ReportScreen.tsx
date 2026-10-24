@@ -27,9 +27,23 @@ export default function ReportScreen() {
   const doc = useMemo(
     () =>
       job
-        ? reportDoc(buildJobReport({ job, phases, tasks, entries, profiles, comments, attachments }), { showPercent })
+        ? reportDoc(
+            buildJobReport({
+              job,
+              phases,
+              tasks,
+              entries,
+              profiles,
+              comments,
+              attachments,
+              viewerId: me.id,
+              // A tech sees their own hours, not a list of their colleagues'.
+              peopleScope: me.role === 'tech' ? 'self' : 'all',
+            }),
+            { showPercent },
+          )
         : null,
-    [job, phases, tasks, entries, profiles, comments, attachments, showPercent],
+    [job, phases, tasks, entries, profiles, comments, attachments, showPercent, me.id, me.role],
   );
 
   // The PDF is made ahead of time so Share works straight from the tap
