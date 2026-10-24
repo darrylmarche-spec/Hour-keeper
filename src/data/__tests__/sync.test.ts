@@ -1,6 +1,7 @@
+import { changedFields, clashingFields, CONFLICT_MESSAGE } from '../conflicts';
 import { Cursor, KeyValueStorage, LocalStore } from '../localStore';
 import { BaseRow, TableName } from '../schema';
-import { parseTs, Remote, RemoteError, SyncEngine } from '../sync';
+import { parseTs, Remote, RemoteError, SyncEngine, UpsertOptions } from '../sync';
 
 class MemoryStorage implements KeyValueStorage {
   data = new Map<string, string>();
@@ -45,9 +46,26 @@ class FakeServer implements Remote {
     return true;
   }
 
-  async upsert(table: TableName, row: BaseRow) {
+  // Mirrors SupabaseRemote: an edit to a row the server has is sent as only
+  // the changed fields, and applied only if nobody else changed those fields.
+  sent: { id: string; fields: string[]; force: boolean }[] = [];
+  async upsert(table: TableName, row: BaseRow, opts: UpsertOptions = {}) {
     if (!this.online) throw new RemoteError('network', 'Failed to fetch');
     if (this.rejectIds.has(row.id)) throw new RemoteError('rejected', 'nope');
+    const existing = this.t(table).get(row.id);
+    if (existing && opts.base) {
+      const changes = changedFields(row as unknown as Record<string, unknown>, opts.base as unknown as Record<string, unknown>);
+      this.sent.push({ id: row.id, fields: Object.keys(changes), force: !!opts.force });
+      if (!Object.keys(changes).length) return null;
+      if (
+        !opts.force &&
+        clashingFields(changes, opts.base as unknown as Record<string, unknown>, existing as unknown as Record<string, unknown>).length
+      ) {
+        throw new RemoteError('rejected', CONFLICT_MESSAGE, existing);
+      }
+      this.upserts.push(row.id);
+      return this.put(table, { ...existing, ...changes, server_seen: true });
+    }
     this.upserts.push(row.id);
     return this.put(table, { ...row, server_seen: true });
   }
@@ -148,10 +166,10 @@ describe('offline writes', () => {
     await store.write('time_entries', entry('e1', 4));
 
     const realUpsert = server.upsert.bind(server);
-    server.upsert = async (table, row) => {
+    server.upsert = async (table, row, opts) => {
       server.upsert = realUpsert; // only intercept the first send
       await store.write('time_entries', entry('e1', 7)); // user edits mid-send
-      return realUpsert(table, row);
+      return realUpsert(table, row, opts);
     };
     await engine.sync();
     expect(store.get('time_entries', 'e1')).toMatchObject({ hours: 7 });
@@ -232,14 +250,30 @@ describe('pulling from the server', () => {
     const { store, server, engine } = await setup();
     server.put('time_entries', entry('e1', 4));
     await engine.sync();
-    server.online = false;
+    // The person edits just as the download is arriving.
+    const realPull = server.pull.bind(server);
+    server.pull = async (...args) => {
+      await store.write('time_entries', entry('e1', 9));
+      return realPull(...args);
+    };
+    server.put('time_entries', entry('e1', 1)); // someone else's change is in that download
+    await engine.sync();
+    expect(store.get('time_entries', 'e1')).toMatchObject({ hours: 9 });
+    expect(store.pendingCount()).toBe(1); // still waiting to be sent
+  });
+
+  it('shows the server’s version once a change has been refused, and keeps the refused change listed', async () => {
+    const { store, server, engine } = await setup();
+    server.put('time_entries', entry('e1', 4));
+    await engine.sync();
     await store.write('time_entries', entry('e1', 9));
-    server.online = true;
-    // Someone else's change arrives in the same run as ours is being sent
     server.rejectIds.add('e1');
     server.put('time_entries', entry('e1', 1));
     await engine.sync();
-    expect(store.get('time_entries', 'e1')).toMatchObject({ hours: 9 });
+    expect(store.get('time_entries', 'e1')).toMatchObject({ hours: 1 }); // what the server has
+    const [refused] = store.rejectedItems();
+    expect(refused.row).toMatchObject({ hours: 9 }); // the person's change, kept
+    expect(store.rejectedReason('time_entries', 'e1')).toBe('nope');
   });
 
   it('hides rows deleted on the server', async () => {
@@ -332,6 +366,154 @@ describe('sync runs', () => {
     };
     await engine.sync();
     expect(engine.getState().phase).toBe('signed-out');
+  });
+});
+
+const withNote = (id: string, hours: number, note: string) => ({ ...entry(id, hours), note });
+
+describe('two people changing the same entry (idea 10)', () => {
+  async function entryOnBoth() {
+    const t = await setup();
+    t.server.put('time_entries', entry('e1', 4));
+    await t.engine.sync(); // the tech's phone now has the entry
+    return t;
+  }
+
+  it('sends only the fields that were changed', async () => {
+    const { store, server, engine } = await entryOnBoth();
+    await store.write('time_entries', withNote('e1', 4, 'pit ladder missing'));
+    await engine.sync();
+    expect(server.sent[server.sent.length - 1]).toEqual({ id: 'e1', fields: ['note'], force: false });
+  });
+
+  it('keeps both changes when they touch different fields (tech edits the note, PM corrects the hours)', async () => {
+    const { store, server, engine } = await entryOnBoth();
+    server.online = false;
+    await store.write('time_entries', withNote('e1', 4, 'pit ladder missing')); // tech, offline
+    server.online = true;
+    server.put('time_entries', { ...entry('e1', 6), server_seen: true }); // PM corrects the hours meanwhile
+    await engine.sync();
+    expect(store.rejectedItems()).toHaveLength(0);
+    expect(server.tables.get('time_entries')!.get('e1')).toMatchObject({ hours: 6, note: 'pit ladder missing' });
+    expect(store.get('time_entries', 'e1')).toMatchObject({ hours: 6, note: 'pit ladder missing' }); // the tech sees both
+  });
+
+  it('never overwrites when it is the same field: their version stays, the tech’s version is held', async () => {
+    const { store, server, engine } = await entryOnBoth();
+    server.online = false;
+    await store.write('time_entries', entry('e1', 5)); // tech: 4 -> 5, offline
+    server.online = true;
+    server.put('time_entries', entry('e1', 6)); // PM: 4 -> 6
+    await engine.sync();
+
+    expect(server.tables.get('time_entries')!.get('e1')).toMatchObject({ hours: 6 }); // PM's correction intact
+    expect(store.get('time_entries', 'e1')).toMatchObject({ hours: 6 }); // the tech now sees 6
+    const [held] = store.rejectedItems();
+    expect(held.rejected).toBe(CONFLICT_MESSAGE);
+    expect(held.row).toMatchObject({ hours: 5 }); // the tech's version, untouched
+    expect(held.theirs).toMatchObject({ hours: 6 });
+    expect(engine.getState().rejected).toBe(1);
+    expect(engine.getState().pending).toBe(0);
+  });
+
+  it('"keep theirs" lets go of the tech’s version and leaves the server alone', async () => {
+    const { store, server, engine } = await entryOnBoth();
+    server.online = false;
+    await store.write('time_entries', entry('e1', 5));
+    server.online = true;
+    server.put('time_entries', entry('e1', 6));
+    await engine.sync();
+    const sentBefore = server.sent.length;
+
+    await store.resolveConflict(store.rejectedItems()[0].seq, 'theirs');
+    await engine.sync();
+    expect(store.rejectedItems()).toHaveLength(0);
+    expect(server.sent.length).toBe(sentBefore); // nothing more was sent
+    expect(store.get('time_entries', 'e1')).toMatchObject({ hours: 6 });
+    expect(server.tables.get('time_entries')!.get('e1')).toMatchObject({ hours: 6 });
+  });
+
+  it('"use mine" sends the tech’s version without the check, and only the fields they changed', async () => {
+    const { store, server, engine } = await entryOnBoth();
+    server.online = false;
+    await store.write('time_entries', entry('e1', 5));
+    server.online = true;
+    server.put('time_entries', { ...withNote('e1', 6, 'PM corrected'), server_seen: true }); // PM changed hours AND the note
+    await engine.sync();
+
+    await store.resolveConflict(store.rejectedItems()[0].seq, 'mine');
+    expect(store.get('time_entries', 'e1')).toMatchObject({ hours: 5 });
+    await engine.sync();
+    expect(server.sent[server.sent.length - 1]).toEqual({ id: 'e1', fields: ['hours'], force: true });
+    // The tech's hours win; the PM's note (which the tech never touched) is not wiped.
+    expect(server.tables.get('time_entries')!.get('e1')).toMatchObject({ hours: 5, note: 'PM corrected' });
+    expect(store.rejectedItems()).toHaveLength(0);
+    expect(store.pendingCount()).toBe(0);
+  });
+
+  it('keeps the original starting point when the same row is edited several times before sending', async () => {
+    const { store, server, engine } = await entryOnBoth();
+    server.online = false;
+    await store.write('time_entries', entry('e1', 5));
+    await store.write('time_entries', withNote('e1', 5.5, 'x'));
+    server.online = true;
+    await engine.sync();
+    expect(server.sent[server.sent.length - 1].fields.sort()).toEqual(['hours', 'note']);
+    expect(server.tables.get('time_entries')!.get('e1')).toMatchObject({ hours: 5.5, note: 'x' });
+  });
+
+  it('an edit made while the first is being sent starts from what the server accepted', async () => {
+    const { store, server, engine } = await entryOnBoth();
+    await store.write('time_entries', entry('e1', 5));
+    const realUpsert = server.upsert.bind(server);
+    server.upsert = async (table, row, opts) => {
+      server.upsert = realUpsert;
+      await store.write('time_entries', entry('e1', 7)); // edited again mid-send
+      return realUpsert(table, row, opts);
+    };
+    await engine.sync();
+    expect(store.rejectedItems()).toHaveLength(0); // no false clash with ourselves
+    expect(server.tables.get('time_entries')!.get('e1')).toMatchObject({ hours: 7 });
+    expect(store.pendingCount()).toBe(0);
+  });
+
+  it('still sends a change queued by an older version of the app (no starting point) whole', async () => {
+    const { store, server, engine } = await entryOnBoth();
+    await store.write('time_entries', entry('e1', 5));
+    // Simulate an item saved before this version existed.
+    (store.pending()[0] as { base?: BaseRow }).base = undefined;
+    await engine.sync();
+    expect(server.tables.get('time_entries')!.get('e1')).toMatchObject({ hours: 5 });
+    expect(store.rejectedItems()).toHaveLength(0);
+  });
+
+  it('survives the app being closed with a held clash', async () => {
+    const t = await entryOnBoth();
+    t.server.online = false;
+    await t.store.write('time_entries', entry('e1', 5));
+    t.server.online = true;
+    t.server.put('time_entries', entry('e1', 6));
+    await t.engine.sync();
+
+    const reopened = new LocalStore(t.storage, 'hk:user1');
+    await reopened.load();
+    const [held] = reopened.rejectedItems();
+    expect(held.row).toMatchObject({ hours: 5 });
+    expect(held.theirs).toMatchObject({ hours: 6 });
+    expect(reopened.get('time_entries', 'e1')).toMatchObject({ hours: 6 });
+  });
+
+  it('a newer edit made after a clash starts from their version, not from the held one', async () => {
+    const { store, server, engine } = await entryOnBoth();
+    server.online = false;
+    await store.write('time_entries', entry('e1', 5));
+    server.online = true;
+    server.put('time_entries', entry('e1', 6));
+    await engine.sync(); // clash held
+    await store.write('time_entries', withNote('e1', 6, 'fresh note')); // edit on top of what they see (6)
+    await engine.sync();
+    expect(server.tables.get('time_entries')!.get('e1')).toMatchObject({ hours: 6, note: 'fresh note' });
+    expect(store.rejectedItems()).toHaveLength(1); // the held clash is still there to decide
   });
 });
 

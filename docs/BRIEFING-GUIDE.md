@@ -9,7 +9,7 @@ Also read:
   re-pitch a settled or parked idea unless something new changes it.
 - `docs/PRE-BETA-CHECKS.md`: checks already handed to the build chat.
 
-## Current state (as of 24 Oct 2026)
+## Current state (as of 25 Oct 2026)
 
 Checked against the repo, Supabase and Vercel on this date. Check it
 before recommending anything. Whoever changes any of these updates this
@@ -28,7 +28,7 @@ distributed.
   19.3.0, Expo Router 58.0.23 (typed routes on), TypeScript 6.0.3,
   `react-native-web` 0.21.4, Supabase JS client 2.118.0. `app.json`
   version is `0.1.0` (shown in the app with the build id).
-- **Checks:** Jest 29 with ts-jest (9 suites, 85 tests), TypeScript and
+- **Checks:** Jest 29 with ts-jest (12 suites, 115 tests; 11 of them run every migration on a real Postgres in memory with PGlite, so `npm test` passes a Node flag and plain `npx jest` fails those), TypeScript and
   `expo lint`. A GitHub Actions workflow (`.github/workflows/checks.yml`,
   Node 22) runs all three on every pull request and every push to
   `main`; the build chat also runs them first. Unconfirmed: whether
@@ -76,11 +76,17 @@ distributed.
   minutes). Runs after a change, on reconnect, on return to the app,
   every 60 seconds (15 while offline). A new attachment's file uploads
   before its row. No Supabase Realtime. Rows are soft-deleted
-  (`deleted_at`). **Clashes:** the whole row is sent, so the last change
-  to reach the server wins. Only time entries keep a before-and-after
-  history (a database trigger writes `time_entry_edits`). A pulled change
-  never overwrites a row that is still waiting to send. Not yet tested
-  (pre-beta check 3).
+  (`deleted_at`). **Clashes:** an edit is sent as only the fields the
+  person changed, with what they were when the edit began, and the
+  server applies it only if nobody else changed those fields. Different
+  fields both survive. The same field is held on the phone as "not
+  saved" and the person chooses "Keep what's there now" or "Use my
+  version instead" (both versions stay in the entry's history). Refused
+  changes are explained in plain words and kept until discarded. Only
+  time entries keep a before-and-after history (a database trigger
+  writes `time_entry_edits`). A pulled change never overwrites a row
+  that is still waiting to send. Tested in the sync tests, on PGlite and
+  in a two-browser run; not on real phones.
 - **Backend:** Supabase project `hour-keeper`, region `ap-southeast-2`
   (Sydney, Australia), Postgres 17.11 (Supabase version
   17.11.0.003), Free plan. 14 tables in `public`: profiles, jobs,
@@ -89,7 +95,7 @@ distributed.
   feedback, app_errors. Row-level security on every table, with helper
   functions in a `private` schema. Triggers handle edit history,
   blocking deletion of a task that has hours, guarding role changes and
-  feedback status. Migrations `0001` to `0011` in `supabase/migrations`.
+  feedback status. Migrations `0001` to `0012` in `supabase/migrations` (`0012`, which stops hours being saved on a removed task, is applied to the live database only after the pull request is approved).
   No Edge Functions. Only the default extensions are installed. No
   backup arrangement set up by us.
 - **Sign-in:** Supabase Auth, email and password only. The app asks for
@@ -150,17 +156,17 @@ distributed.
   `src/` or `supabase/`). AI is only used to build the app.
 - **Settled but not built yet:** from `docs/IDEAS.md`: database-level
   blocking of quoted figures (1), remote sign-out (4), opt-in push
-  notifications (6), photos that can't be quietly removed (9), and keeping
-  both versions and telling the tech when edits clash (10; today the
-  last change to reach the server wins, and a refused change only shows
-  as "not saved" on the sync badge). Built: idea 2 (crash reports only),
+  notifications (6) and photos that can't be quietly removed (9). Built:
+  idea 2 (crash reports only), idea 10 (clashes and refused changes are
+  held and explained, nobody's version is silently overwritten),
   idea 3 (the checks workflow, first run pending), idea 8 (photo cleaning,
   web-tested) and the no-ranking part of idea 11. Results of the pre-beta
   checks are in `docs/PRE-BETA-RESULTS.md`.
 - **Not confirmed:** Vercel plan; Supabase Auth dashboard settings; GitHub
   branch protection; how the app behaves on a real iPhone or Android
   phone (only web has been tested, including photo cleaning, which has
-  only seen test photos); sync-clash behaviour.
+  only seen test photos, and clashes and refused changes, which have been
+  tested in the browser and on PGlite but not on phones).
 
 ## Design rules (never change)
 

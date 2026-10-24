@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LogHoursForm } from '@/components/LogHoursForm';
 import { Sheet } from '@/components/Sheet';
 import { Button, Pill } from '@/components/ui';
-import { useIsPending, useMe, useSave, useTable } from '@/data/DataProvider';
+import { useIsPending, useMe, useRejectedReason, useSave, useTable } from '@/data/DataProvider';
 import { Job, TimeEntry } from '@/data/schema';
 import { formatHours } from '@/data/totals';
 import { confirm } from '@/lib/confirm';
@@ -107,6 +107,7 @@ function EntryRow({
   onHistory: () => void;
 }) {
   const pending = useIsPending('time_entries', entry.id);
+  const refused = useRejectedReason('time_entries', entry.id);
   return (
     <Pressable
       onPress={canEdit ? onEdit : undefined}
@@ -127,6 +128,7 @@ function EntryRow({
             </Pressable>
           ) : null}
           {pending ? <Pill text="Waiting to send" /> : null}
+          {refused ? <Pill text="Not saved · see Sync" tone="bad" /> : null}
         </View>
       </View>
       <Text style={styles.hours}>{formatHours(Number(entry.hours))}</Text>
