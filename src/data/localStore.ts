@@ -4,7 +4,7 @@
 // without signal. Every write lands here first and is queued in the outbox;
 // the sync engine pushes the outbox to the server when it can.
 
-import { BaseRow, TableName, TABLES } from './schema';
+import { BaseRow, RETIRED_COLUMNS, TableName, TABLES } from './schema';
 
 export interface KeyValueStorage {
   getItem(key: string): Promise<string | null>;
@@ -44,6 +44,18 @@ type Listener = () => void;
 
 const EMPTY: readonly BaseRow[] = Object.freeze([]);
 
+// Removes columns that moved to the office-only tables. True if anything was removed.
+function dropRetired(table: TableName, row: object): boolean {
+  let removed = false;
+  for (const c of RETIRED_COLUMNS[table] ?? []) {
+    if (c in row) {
+      delete (row as Record<string, unknown>)[c];
+      removed = true;
+    }
+  }
+  return removed;
+}
+
 export class LocalStore {
   private tables = new Map<TableName, Map<string, BaseRow>>();
   private snapshots = new Map<TableName, readonly BaseRow[]>();
@@ -69,11 +81,26 @@ export class LocalStore {
     for (const t of TABLES) {
       const raw = await this.storage.getItem(this.key(`t:${t}`));
       const map = new Map<string, BaseRow>();
-      if (raw) for (const row of JSON.parse(raw) as BaseRow[]) map.set(row.id, row);
+      let scrubbed = false;
+      if (raw) {
+        for (const row of JSON.parse(raw) as BaseRow[]) {
+          scrubbed = dropRetired(t, row) || scrubbed;
+          map.set(row.id, row);
+        }
+      }
       this.tables.set(t, map);
+      if (scrubbed) await this.saveTableNow(t);
     }
     const ob = await this.storage.getItem(this.key('outbox'));
     this.outbox = ob ? JSON.parse(ob) : [];
+    // Figures an older version of the app kept on this phone are removed, in
+    // saved rows and in changes still waiting to send.
+    let outboxScrubbed = false;
+    for (const item of this.outbox) {
+      outboxScrubbed = dropRetired(item.table, item.row) || outboxScrubbed;
+      if (item.base) outboxScrubbed = dropRetired(item.table, item.base) || outboxScrubbed;
+    }
+    if (outboxScrubbed) await this.storage.setItem(this.key('outbox'), JSON.stringify(this.outbox));
     this.nextSeq = this.outbox.reduce((m, i) => Math.max(m, i.seq + 1), 1);
     const cur = await this.storage.getItem(this.key('cursors'));
     this.cursors = cur ? JSON.parse(cur) : {};
@@ -177,8 +204,12 @@ export class LocalStore {
   async writeMany(items: { table: TableName; row: BaseRow }[]): Promise<void> {
     if (!items.length) return;
     const touched = new Set<TableName>();
-    for (const { table, row } of items) {
-      const previous = this.tables.get(table)!.get(row.id);
+    for (const { table, row: given } of items) {
+      const previous = this.tables.get(table)!.get(given.id);
+      // A row given with only some of its fields (e.g. just a new sold figure)
+      // keeps the rest of what is already stored, including the server's updated_at,
+      // so it is treated as an edit of a row the server has, not as a new row.
+      const row = previous ? { ...previous, ...given } : given;
       this.tables.get(table)!.set(row.id, row);
       this.changed(table);
       touched.add(table);

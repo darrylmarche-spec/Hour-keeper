@@ -6,10 +6,13 @@ import { pdfSafe } from '../pdfWeb';
 import { buildJobReport } from '../jobReport';
 
 const job = (id: string, name = id): Job =>
-  ({ id, name, job_number: '', customer: '', site_address: '', job_type: 'construction', status: 'released', quoted_total_hours: null, deadline: null }) as Job;
+  ({ id, name, job_number: '', customer: '', site_address: '', job_type: 'construction', status: 'released', deadline: null }) as Job;
 const phase = (id: string, jobId: string, order: number): Phase => ({ id, job_id: jobId, name: `Phase ${id}`, sort_order: order });
-const task = (id: string, jobId: string, phaseId: string, line: string, name: string, sold: number, kind: Task['kind'] = 'planned'): Task =>
-  ({ id, job_id: jobId, phase_id: phaseId, line_no: line, name, sold_hours: sold, kind, sort_order: Number(line) });
+const soldMap = new Map<string, number>();
+const task = (id: string, jobId: string, phaseId: string, line: string, name: string, sold: number, kind: Task['kind'] = 'planned'): Task => {
+  soldMap.set(id, sold);
+  return { id, job_id: jobId, phase_id: phaseId, line_no: line, name, kind, sort_order: Number(line) };
+};
 let n = 0;
 const entry = (jobId: string, taskId: string, user: string, day: string, hours: number | string, edited = false): TimeEntry =>
   ({ id: `e${++n}`, job_id: jobId, task_id: taskId, user_id: user, work_date: day, hours: hours as number, note: '', edited });
@@ -41,7 +44,7 @@ describe('job report', () => {
     { id: 'c2', job_id: 'j1', task_id: null, user_id: 'u2', body: 'Builder late', created_at: '2026-10-16T02:00:00Z' },
     { id: 'c1', job_id: 'j1', task_id: 't1', user_id: 'u1', body: 'Pit ladder missing', created_at: '2026-10-14T02:00:00Z' },
   ];
-  const r = buildJobReport({ job: j, phases, tasks, entries, profiles: people, comments, attachments: [], now: new Date('2026-10-19T00:00:00Z') });
+  const r = buildJobReport({ job: j, phases, tasks, soldByTask: soldMap, entries, profiles: people, comments, attachments: [], now: new Date('2026-10-19T00:00:00Z') });
 
   it('totals the job from its own lines only', () => {
     expect(r.totals).toEqual({ sold: 12, actual: 13.3, variance: 1.3, pct: 111 });
@@ -72,7 +75,7 @@ describe('job report', () => {
     expect(r.editedEntries).toBe(1);
   });
   it('shows a tech only their own hours, with the job-level totals unchanged', () => {
-    const mine = buildJobReport({ job: j, phases, tasks, entries, profiles: people, comments, attachments: [], viewerId: 'u1', peopleScope: 'self' });
+    const mine = buildJobReport({ job: j, phases, tasks, soldByTask: soldMap, entries, profiles: people, comments, attachments: [], viewerId: 'u1', peopleScope: 'self' });
     expect(mine.people).toEqual([{ userId: 'u1', name: 'Terry Tech', hours: 6.3, days: 3 }]);
     expect(mine.peopleScope).toBe('self');
     expect(mine.totals).toEqual(r.totals);
@@ -87,7 +90,7 @@ describe('job report', () => {
     expect(JSON.stringify(outsideComments)).not.toContain('sam@x');
   });
   it('keeps the day table for a tech who has not logged anything yet', () => {
-    const none = buildJobReport({ job: j, phases, tasks, entries, profiles: people, comments: [], attachments: [], viewerId: 'someone-else', peopleScope: 'self' });
+    const none = buildJobReport({ job: j, phases, tasks, soldByTask: soldMap, entries, profiles: people, comments: [], attachments: [], viewerId: 'someone-else', peopleScope: 'self' });
     expect(none.people).toEqual([]);
     const doc = reportDoc(none, { showPercent: false });
     expect(doc.tables.map((t) => t.heading)).toContain('Hours by day');
@@ -116,7 +119,7 @@ describe('comparing jobs', () => {
     entry('a', 'a2', 'u1', '2026-10-01', 8),
     entry('b', 'b2', 'u1', '2026-10-01', 9),
   ];
-  const r = compareJobs(jobs, tasks, entries);
+  const r = compareJobs(jobs, tasks, entries, soldMap);
 
   it('ranks jobs by how much of the sold hours they used', () => {
     expect(r.jobs.map((x) => [x.job.name, x.pct])).toEqual([
@@ -138,6 +141,7 @@ describe('report document', () => {
     job: j,
     phases: [phase('p1', 'j1', 0)],
     tasks: [task('t1', 'j1', 'p1', '1', 'Induction', 8), task('t2', 'j1', 'p1', '2', 'Hoisting', 4)],
+    soldByTask: soldMap,
     entries: [entry('j1', 't1', 'u1', '2026-10-14', 9)],
     profiles: people,
     comments: [],
@@ -162,6 +166,30 @@ describe('report document', () => {
     expect(rows[rows.length - 1]).toEqual(['', 'JOB TOTAL', '12', '9', '−3']);
     expect(d.details).toContainEqual(['Lift', '8 stops · 22.92 m travel']);
     expect(d.details.find(([k]) => k === 'Project No.')?.[1]).toBe('0813190833');
+  });
+
+  it('a tech\u2019s copy has hours worked and no sold, over or under figures at all', () => {
+    const techCopy = buildJobReport({
+      job: j,
+      phases: [phase('p1', 'j1', 0)],
+      tasks: [task('t1', 'j1', 'p1', '1', 'Induction', 8), task('t2', 'j1', 'p1', '2', 'Hoisting', 4)],
+      // no soldByTask: a tech's phone never has the figures
+      entries: [entry('j1', 't1', 'u1', '2026-10-14', 9)],
+      profiles: people,
+      comments: [],
+      attachments: [],
+    });
+    expect(techCopy.showSold).toBe(false);
+    // Even if someone asks for percentages, there is nothing to base them on.
+    const d = reportDoc(techCopy, { showPercent: true });
+    expect(d.tables[0].columns).toEqual(['Line', 'Task', 'Actual']);
+    expect(d.summary).toEqual([['Hours logged', '9 hrs']]);
+    expect(d.subtitle).toBe('Hours logged');
+    const everything = JSON.stringify(d) + reportHtml(d);
+    expect(everything).not.toMatch(/Sold|Over|Under|Remaining|Used/);
+    // The sold figures (8 and 4, 12 in total) appear nowhere.
+    expect(d.tables[0].rows.find((x) => x[1] === 'Induction')).toEqual(['1', 'Induction', '9']);
+    expect(JSON.stringify(d)).not.toContain('"12"');
   });
 
   it('escapes text in the HTML', () => {

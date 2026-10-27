@@ -9,7 +9,7 @@ Also read:
   re-pitch a settled or parked idea unless something new changes it.
 - `docs/PRE-BETA-CHECKS.md`: checks already handed to the build chat.
 
-## Current state (as of 25 Oct 2026)
+## Current state (as of 27 Oct 2026)
 
 Checked against the repo, Supabase and Vercel on this date. Check it
 before recommending anything. Whoever changes any of these updates this
@@ -28,7 +28,7 @@ distributed.
   19.3.0, Expo Router 58.0.23 (typed routes on), TypeScript 6.0.3,
   `react-native-web` 0.21.4, Supabase JS client 2.118.0. `app.json`
   version is `0.1.0` (shown in the app with the build id).
-- **Checks:** Jest 29 with ts-jest (12 suites, 115 tests; 11 of them run every migration on a real Postgres in memory with PGlite, so `npm test` passes a Node flag and plain `npx jest` fails those), TypeScript and
+- **Checks:** Jest 29 with ts-jest (13 suites, 128 tests; 21 of them run every migration on a real Postgres in memory with PGlite, so `npm test` passes a Node flag and plain `npx jest` fails those), TypeScript and
   `expo lint`. A GitHub Actions workflow (`.github/workflows/checks.yml`,
   Node 22) runs all three on every pull request and every push to
   `main`; the build chat also runs them first. Unconfirmed: whether
@@ -89,13 +89,13 @@ distributed.
   in a two-browser run; not on real phones.
 - **Backend:** Supabase project `hour-keeper`, region `ap-southeast-2`
   (Sydney, Australia), Postgres 17.11 (Supabase version
-  17.11.0.003), Free plan. 14 tables in `public`: profiles, jobs,
-  job_members, phases, tasks, templates, template_phases,
-  template_tasks, time_entries, time_entry_edits, comments, attachments,
-  feedback, app_errors. Row-level security on every table, with helper
+  17.11.0.003), Free plan. 16 tables in `public`: profiles, jobs,
+  job_members, phases, tasks, task_budgets, job_budgets, templates,
+  template_phases, template_tasks, time_entries, time_entry_edits,
+  comments, attachments, feedback, app_errors. Row-level security on every table, with helper
   functions in a `private` schema. Triggers handle edit history,
   blocking deletion of a task that has hours, guarding role changes and
-  feedback status. Migrations `0001` to `0012` in `supabase/migrations` (`0012`, which stops hours being saved on a removed task, is applied to the live database only after the pull request is approved).
+  feedback status. Migrations `0001` to `0014` in `supabase/migrations`. `0013` (the office-only sold-figure tables) and `0014` (drops the old columns) are applied to the live database only after the pull request is approved: check `docs/PRE-BETA-RESULTS.md` for whether they have been.
   No Edge Functions. Only the default extensions are installed. No
   backup arrangement set up by us.
 - **Sign-in:** Supabase Auth, email and password only. The app asks for
@@ -112,15 +112,19 @@ distributed.
   PM and supervisor can create, edit, assign and release jobs. PM and
   admin also see percentages and Compare jobs. Admin sees the feedback
   inbox. A tech sees only jobs they are assigned to, once released.
-- **What a tech's phone receives today:** row-level security works per
-  row, not per column. So a tech's phone currently downloads and shows
-  the sold hours of each task, the job's quoted total, and every
-  assigned tech's hours on that job (task screen entries; the report
-  shows a tech only their own line, and the office's list is in name
-  order, not ranked by hours). Percentages and Compare jobs are hidden
-  in the app, but
-  database-level blocking of quoted figures (idea 1) is not built yet
-  (pre-beta check 1).
+- **What a tech's phone receives:** row-level security works per row, not
+  per column, so the sold figures are kept in their own tables
+  (`task_budgets`, `job_budgets`) that only admin, PM and supervisor can
+  read; the standard hours templates are office-only too. A tech's phone
+  asks for them and gets nothing, so Sold, Remaining, Over and percentages
+  can't be worked out there; the screens, report and PDF show a tech hours
+  only. A tech's phone does receive every assigned tech's hours on their
+  job (task screen entries); their report shows only their own line, and
+  the office's list is in name order, not ranked by hours. Until migration
+  `0014` is applied to the live database, the old columns still exist on
+  `tasks` and `jobs` and the server still sends them: the new app discards
+  them on arrival, but they only stop being sent once `0014` is applied.
+  Not yet tested on a real phone (pre-beta check 1).
 - **Photos and files:** every image, whether from the camera, the library
   or the file picker, is cleaned of hidden data before it is saved or
   uploaded (`src/files/imageClean.ts`). Photos are shrunk on the device
@@ -154,10 +158,11 @@ distributed.
   version and device type. Admins read both in the app.
 - **AI in the app:** none (no AI library or call in `package.json`,
   `src/` or `supabase/`). AI is only used to build the app.
-- **Settled but not built yet:** from `docs/IDEAS.md`: database-level
-  blocking of quoted figures (1), remote sign-out (4), opt-in push
-  notifications (6) and photos that can't be quietly removed (9). Built:
-  idea 2 (crash reports only), idea 10 (clashes and refused changes are
+- **Settled but not built yet:** from `docs/IDEAS.md`: remote sign-out
+  (4), opt-in push notifications (6) and photos that can't be quietly
+  removed (9). Built: idea 1 (sold figures in office-only tables; live
+  only once migrations `0013` and `0014` are applied), idea 2 (crash
+  reports only), idea 10 (clashes and refused changes are
   held and explained, nobody's version is silently overwritten),
   idea 3 (the checks workflow, first run pending), idea 8 (photo cleaning,
   web-tested) and the no-ranking part of idea 11. Results of the pre-beta

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Sheet } from '@/components/Sheet';
 import { Button, Field, Notice } from '@/components/ui';
-import { newId, useMe, useSave, useSaveMany, useTable } from '@/data/DataProvider';
+import { newId, useBudgets, useMe, useSave, useSaveMany, useTable } from '@/data/DataProvider';
 import { BaseRow, Job, JobStatus, TableName } from '@/data/schema';
 import { draftFromJob, templateRowsFromDraft } from '@/jobs/draft';
 import { confirm } from '@/lib/confirm';
@@ -16,6 +16,7 @@ export function JobActions({ job }: { job: Job }) {
   const members = useTable('job_members');
   const phases = useTable('phases');
   const tasks = useTable('tasks');
+  const budgets = useBudgets();
   const save = useSave();
   const saveMany = useSaveMany();
   const [naming, setNaming] = useState(false);
@@ -47,7 +48,7 @@ export function JobActions({ job }: { job: Job }) {
   const saveAsTemplate = async () => {
     const name = templateName.trim();
     if (!name) return;
-    const draft = draftFromJob(job, phases, tasks, []);
+    const draft = draftFromJob(job, phases, tasks, [], { soldByTask: budgets.soldByTask });
     const t = templateRowsFromDraft(name, draft, { newId, userId: me.id });
     const items: { table: TableName; row: BaseRow }[] = [
       { table: 'templates', row: t.template },

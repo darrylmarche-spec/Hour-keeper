@@ -21,7 +21,12 @@ const c = (n: number | string) => Math.round((Number(n) || 0) * 100);
 // and spacing ("Shaft survey" on one job = "shaft  survey" on another).
 const keyOf = (t: Task) => `${t.line_no.trim()}|${t.name.trim().toLowerCase().replace(/\s+/g, ' ')}`;
 
-export function compareJobs(jobs: readonly Job[], tasks: readonly Task[], entries: readonly TimeEntry[]) {
+export function compareJobs(
+  jobs: readonly Job[],
+  tasks: readonly Task[],
+  entries: readonly TimeEntry[],
+  soldByTask: ReadonlyMap<string, number>,
+) {
   const ids = new Set(jobs.map((j) => j.id));
   const actualByTask = new Map<string, number>();
   const actualByJob = new Map<string, number>();
@@ -34,14 +39,15 @@ export function compareJobs(jobs: readonly Job[], tasks: readonly Task[], entrie
   const groups = new Map<string, { line_no: string; name: string; sold: number; actual: number; jobs: number; over: number }>();
   for (const t of tasks) {
     if (!ids.has(t.job_id)) continue;
-    soldByJob.set(t.job_id, (soldByJob.get(t.job_id) ?? 0) + c(t.sold_hours));
+    const sold = c(soldByTask.get(t.id) ?? 0);
+    soldByJob.set(t.job_id, (soldByJob.get(t.job_id) ?? 0) + sold);
     const a = actualByTask.get(t.id) ?? 0;
     if (!a) continue; // not started on that job — says nothing about the task yet
     const g = groups.get(keyOf(t)) ?? { line_no: t.line_no, name: t.name, sold: 0, actual: 0, jobs: 0, over: 0 };
-    g.sold += c(t.sold_hours);
+    g.sold += sold;
     g.actual += a;
     g.jobs += 1;
-    if (a > c(t.sold_hours)) g.over += 1;
+    if (a > sold) g.over += 1;
     groups.set(keyOf(t), g);
   }
 

@@ -49,7 +49,6 @@ export interface Job extends BaseRow {
   site_address: string;
   job_type: JobType;
   status: JobStatus;
-  quoted_total_hours: number | null;
   quotation_number?: string;
   stops?: number | null;
   travel_height_m?: number | null;
@@ -75,9 +74,18 @@ export interface Task extends BaseRow {
   phase_id: string;
   line_no: string;
   name: string;
-  sold_hours: number;
   kind: TaskKind;
   sort_order: number;
+}
+
+// Sold hours live in their own office-only tables (see migration 0013), so a
+// tech's phone never receives them. The row's id is the task's or job's own id.
+export interface TaskBudget extends BaseRow {
+  sold_hours: number;
+}
+
+export interface JobBudget extends BaseRow {
+  quoted_total_hours: number | null;
 }
 
 export interface TimeEntry extends BaseRow {
@@ -151,6 +159,8 @@ export interface Tables {
   job_members: JobMember;
   phases: Phase;
   tasks: Task;
+  task_budgets: TaskBudget;
+  job_budgets: JobBudget;
   time_entries: TimeEntry;
   time_entry_edits: TimeEntryEdit;
   comments: Comment;
@@ -168,9 +178,11 @@ export const TABLES: TableName[] = [
   'template_phases',
   'template_tasks',
   'jobs',
+  'job_budgets',
   'job_members',
   'phases',
   'tasks',
+  'task_budgets',
   'time_entries',
   'time_entry_edits',
   'comments',
@@ -195,8 +207,17 @@ export const JOB_CHILD_TABLES: TableName[] = [
 // Postgres numeric columns arrive as strings over REST.
 export const NUMERIC_COLUMNS: Partial<Record<TableName, string[]>> = {
   template_tasks: ['sold_hours'],
-  jobs: ['quoted_total_hours', 'travel_height_m'],
-  tasks: ['sold_hours'],
+  jobs: ['travel_height_m'],
+  task_budgets: ['sold_hours'],
+  job_budgets: ['quoted_total_hours'],
   time_entries: ['hours'],
   attachments: ['size_bytes'],
+};
+
+// Columns that used to be on these tables and now live in the office-only
+// budget tables. Until the old columns are dropped from the database, the
+// server still sends them; the app discards them rather than keep them.
+export const RETIRED_COLUMNS: Partial<Record<TableName, string[]>> = {
+  tasks: ['sold_hours'],
+  jobs: ['quoted_total_hours'],
 };

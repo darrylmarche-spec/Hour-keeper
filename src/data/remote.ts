@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { changedFields, clashingFields, CONFLICT_MESSAGE, NOT_ALLOWED_MESSAGE } from './conflicts';
 import { Cursor } from './localStore';
-import { BaseRow, NUMERIC_COLUMNS, TableName } from './schema';
+import { BaseRow, NUMERIC_COLUMNS, RETIRED_COLUMNS, TableName } from './schema';
 import { Remote, RemoteError, UpsertOptions } from './sync';
 
 // Columns the server owns. Sending them would be ignored by triggers anyway;
@@ -14,6 +14,7 @@ function filterTs(ts: string): string {
 }
 
 function normalise(table: TableName, row: Record<string, unknown>): BaseRow {
+  for (const c of RETIRED_COLUMNS[table] ?? []) delete row[c];
   const cols = NUMERIC_COLUMNS[table];
   if (cols) {
     for (const c of cols) {

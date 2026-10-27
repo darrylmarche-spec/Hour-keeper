@@ -6,11 +6,11 @@ import { Comments } from '@/components/Comments';
 import { EntryList } from '@/components/EntryList';
 import { LogHoursForm } from '@/components/LogHoursForm';
 import { Button, CommandBar, EmptyState, goBackOrHome, Notice, Pill, SectionBar } from '@/components/ui';
-import { newId, useMe, useRow, useSave, useTable } from '@/data/DataProvider';
+import { newId, useBudgets, useMe, useRow, useSave, useTable } from '@/data/DataProvider';
 import { formatHours, percentUsed } from '@/data/totals';
 import { dayLabel } from '@/logging/dates';
 import { canLog, dayTotal } from '@/logging/rules';
-import { seesPercentages } from '@/lib/roles';
+import { seesPercentages, seesSoldHours } from '@/lib/roles';
 import Colors, { Fonts } from '@/theme/colors';
 
 // One task: log hours against it, see everyone's hours, notes, photos and files.
@@ -24,6 +24,7 @@ export default function TaskScreen() {
   const allEntries = useTable('time_entries');
   const allComments = useTable('comments');
   const allAttachments = useTable('attachments');
+  const { soldByTask } = useBudgets();
   const save = useSave();
   const [saved, setSaved] = useState<string | null>(null);
 
@@ -44,7 +45,8 @@ export default function TaskScreen() {
 
   const access = canLog(job, me, members);
   const actual = entries.reduce((s, e) => s + Math.round(Number(e.hours) * 100), 0) / 100;
-  const sold = Number(task.sold_hours);
+  const showSold = seesSoldHours(me.role);
+  const sold = soldByTask.get(task.id) ?? 0;
   const over = actual > sold;
   const pct = percentUsed({ sold, actual });
   const mine = entries.filter((e) => e.user_id === me.id).reduce((s, e) => s + Math.round(Number(e.hours) * 100), 0) / 100;
@@ -68,9 +70,9 @@ export default function TaskScreen() {
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <CommandBar title={task.name} subtitle={[`Line ${task.line_no}`, phase?.name, job.name].filter(Boolean).join(' · ')} back />
       <View style={styles.summary}>
-        <Stat label="Sold" value={formatHours(sold)} />
-        <Stat label="Actual" value={formatHours(actual)} bad={over} />
-        <Stat label={over ? 'Over' : 'Remaining'} value={formatHours(Math.abs(sold - actual))} bad={over} good={!over} />
+        {showSold ? <Stat label="Sold" value={formatHours(sold)} /> : null}
+        <Stat label={showSold ? 'Actual' : 'Hours logged'} value={formatHours(actual)} bad={showSold && over} />
+        {showSold ? <Stat label={over ? 'Over' : 'Remaining'} value={formatHours(Math.abs(sold - actual))} bad={over} good={!over} /> : null}
         {seesPercentages(me.role) ? <Stat label="Used" value={pct === null ? '—' : `${pct}%`} bad={over} /> : null}
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled">

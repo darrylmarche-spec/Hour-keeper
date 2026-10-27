@@ -3,7 +3,7 @@
 // draftToRows() turns a draft into the rows to save.
 
 import { ParsedSheet } from '@/import/taskSheet';
-import { Job, JobStatus, Phase, Task, TaskKind, Template, TemplatePhase, TemplateTask, TimeEntry } from '@/data/schema';
+import { Job, JobBudget, JobStatus, Phase, Task, TaskBudget, TaskKind, Template, TemplatePhase, TemplateTask, TimeEntry } from '@/data/schema';
 
 export interface DraftTask {
   key: string;
@@ -176,7 +176,7 @@ export function draftFromParsed(parsed: ParsedSheet, src?: TemplateSource, detai
   return ensureExtraBuckets({ details: d, phases });
 }
 
-export function detailsFromJob(job: Job): JobDetails {
+export function detailsFromJob(job: Job, quotedTotal?: number | null): JobDetails {
   return {
     name: job.name,
     job_number: job.job_number,
@@ -184,10 +184,16 @@ export function detailsFromJob(job: Job): JobDetails {
     customer: job.customer,
     site_address: job.site_address,
     deadline: job.deadline ?? '',
-    quoted_total: fmt(job.quoted_total_hours),
+    quoted_total: fmt(quotedTotal),
     stops: fmt(job.stops),
     travel: fmt(job.travel_height_m),
   };
+}
+
+// The sold figures come from the office-only budget tables (see migration 0013).
+export interface Budgets {
+  soldByTask: ReadonlyMap<string, number>;
+  quotedTotal?: number | null;
 }
 
 export function draftFromJob(
@@ -195,11 +201,12 @@ export function draftFromJob(
   phases: readonly Phase[],
   tasks: readonly Task[],
   entries: readonly TimeEntry[],
+  budgets: Budgets = { soldByTask: new Map() },
 ): JobDraft {
   const logged = new Map<string, number>();
   for (const e of entries) if (e.job_id === job.id) logged.set(e.task_id, (logged.get(e.task_id) ?? 0) + Number(e.hours));
   return {
-    details: detailsFromJob(job),
+    details: detailsFromJob(job, budgets.quotedTotal),
     phases: phases
       .filter((p) => p.job_id === job.id)
       .sort((a, b) => a.sort_order - b.sort_order)
@@ -215,7 +222,7 @@ export function draftFromJob(
               id: t.id,
               lineNo: t.line_no,
               name: t.name,
-              hours: fmt(t.sold_hours),
+              hours: fmt(budgets.soldByTask.get(t.id)),
               kind: t.kind,
               loggedHours: logged.get(t.id) ?? 0,
             }),
@@ -263,6 +270,8 @@ export interface SaveContext {
   existingJob?: Job;
   existingPhases: readonly Phase[];
   existingTasks: readonly Task[];
+  // Today's sold figures, so only changed ones are saved.
+  existingBudgets?: Budgets;
   userId: string;
   newId: () => string;
   now?: string;
@@ -274,6 +283,10 @@ export interface SaveRows {
   job: Job;
   phases: Phase[]; // new/changed, including soft-deleted
   tasks: Task[];
+  // The sold figures: only the ones that are new or changed. Saved after the
+  // job and its tasks, because each belongs to one of them.
+  taskBudgets: TaskBudget[];
+  jobBudget: JobBudget | null;
 }
 
 const num = (s: string) => (s.trim() === '' ? null : Number(s.trim().replace(',', '.')));
@@ -295,7 +308,6 @@ export function draftToRows(d: JobDraft, ctx: SaveContext): SaveRows {
     customer: d.details.customer.trim(),
     site_address: d.details.site_address.trim(),
     deadline: d.details.deadline || null,
-    quoted_total_hours: num(d.details.quoted_total),
     stops: num(d.details.stops),
     travel_height_m: num(d.details.travel),
   } as Job;
@@ -304,6 +316,8 @@ export function draftToRows(d: JobDraft, ctx: SaveContext): SaveRows {
   const oldTasks = new Map(ctx.existingTasks.filter((t) => t.job_id === ctx.jobId).map((t) => [t.id, t]));
   const phases: Phase[] = [];
   const tasks: Task[] = [];
+  const taskBudgets: TaskBudget[] = [];
+  const oldSold = ctx.existingBudgets?.soldByTask ?? new Map<string, number>();
   const keptPhases = new Set<string>();
   const keptTasks = new Set<string>();
 
@@ -323,23 +337,32 @@ export function draftToRows(d: JobDraft, ctx: SaveContext): SaveRows {
         phase_id: id,
         line_no: t.lineNo.trim(),
         name: t.name.trim(),
-        sold_hours: parseHours(t.hours) ?? 0,
         kind: t.kind,
         sort_order: ti,
       } as Task;
       const changed =
         !prevT ||
-        (['phase_id', 'line_no', 'name', 'sold_hours', 'kind', 'sort_order'] as const).some(
-          (k) => String(prevT[k]) !== String(rowT[k]),
-        );
+        (['phase_id', 'line_no', 'name', 'kind', 'sort_order'] as const).some((k) => String(prevT[k]) !== String(rowT[k]));
       if (changed) tasks.push(rowT);
+      const sold = parseHours(t.hours) ?? 0;
+      const before = oldSold.get(tid);
+      if (before === undefined ? !prevT || sold !== 0 : Math.round(before * 100) !== Math.round(sold * 100)) {
+        taskBudgets.push({ id: tid, sold_hours: sold });
+      }
     });
   });
 
   for (const [id, t] of oldTasks) if (!keptTasks.has(id) && !t.deleted_at) tasks.push({ ...t, deleted_at: now });
   for (const [id, p] of oldPhases) if (!keptPhases.has(id) && !p.deleted_at) phases.push({ ...p, deleted_at: now });
 
-  return { job, phases, tasks };
+  const quoted = num(d.details.quoted_total);
+  const quotedBefore = ctx.existingBudgets?.quotedTotal ?? null;
+  const jobBudget: JobBudget | null =
+    (quoted === null ? null : Math.round(quoted * 100)) === (quotedBefore === null ? null : Math.round(quotedBefore * 100))
+      ? null
+      : { id: ctx.jobId, quoted_total_hours: quoted };
+
+  return { job, phases, tasks, taskBudgets, jobBudget };
 }
 
 export function templateRowsFromDraft(

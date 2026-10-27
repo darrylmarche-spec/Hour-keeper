@@ -3,10 +3,10 @@ import { router } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { CommandBar, EmptyState, Notice, Pill, SectionBar } from '@/components/ui';
-import { useMe, useSyncState, useTable } from '@/data/DataProvider';
+import { useBudgets, useMe, useSyncState, useTable } from '@/data/DataProvider';
 import { Job, JobStatus } from '@/data/schema';
 import { formatHours, percentUsed } from '@/data/totals';
-import { managesJobs, ROLE_LABELS, seesAllJobs, seesPercentages, STATUS_LABELS } from '@/lib/roles';
+import { managesJobs, ROLE_LABELS, seesAllJobs, seesPercentages, seesSoldHours, STATUS_LABELS } from '@/lib/roles';
 import Colors, { Fonts } from '@/theme/colors';
 
 const STATUS_ORDER: JobStatus[] = ['released', 'draft', 'complete'];
@@ -17,6 +17,7 @@ export default function JobsScreen() {
   const members = useTable('job_members');
   const tasks = useTable('tasks');
   const entries = useTable('time_entries');
+  const { soldByTask } = useBudgets();
   const sync = useSyncState();
 
   const sections = useMemo(() => {
@@ -25,7 +26,7 @@ export default function JobsScreen() {
       : jobs.filter((j) => members.some((m) => m.job_id === j.id && m.user_id === me.id));
 
     const sold = new Map<string, number>();
-    for (const t of tasks) sold.set(t.job_id, (sold.get(t.job_id) ?? 0) + Number(t.sold_hours));
+    for (const t of tasks) sold.set(t.job_id, (sold.get(t.job_id) ?? 0) + (soldByTask.get(t.id) ?? 0));
     const actual = new Map<string, number>();
     for (const e of entries) actual.set(e.job_id, (actual.get(e.job_id) ?? 0) + Number(e.hours));
 
@@ -36,7 +37,7 @@ export default function JobsScreen() {
         .sort((a, b) => (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999') || a.name.localeCompare(b.name))
         .map((job) => ({ job, sold: sold.get(job.id) ?? 0, actual: actual.get(job.id) ?? 0 })),
     })).filter((s) => s.data.length);
-  }, [jobs, members, tasks, entries, me.id, me.role]);
+  }, [jobs, members, tasks, entries, soldByTask, me.id, me.role]);
 
   return (
     <View style={styles.screen}>
@@ -75,7 +76,13 @@ export default function JobsScreen() {
         keyExtractor={(i) => i.job.id}
         renderSectionHeader={({ section }) => <SectionBar title={`${section.title} · ${section.data.length}`} />}
         renderItem={({ item }) => (
-          <JobRow job={item.job} sold={item.sold} actual={item.actual} showPercent={seesPercentages(me.role)} />
+          <JobRow
+            job={item.job}
+            sold={item.sold}
+            actual={item.actual}
+            showPercent={seesPercentages(me.role)}
+            showSold={seesSoldHours(me.role)}
+          />
         )}
         stickySectionHeadersEnabled
         contentContainerStyle={{ paddingBottom: 32, flexGrow: 1 }}
@@ -97,15 +104,27 @@ export default function JobsScreen() {
   );
 }
 
-function JobRow({ job, sold, actual, showPercent }: { job: Job; sold: number; actual: number; showPercent: boolean }) {
-  const over = actual > sold && sold > 0;
+function JobRow({
+  job,
+  sold,
+  actual,
+  showPercent,
+  showSold,
+}: {
+  job: Job;
+  sold: number;
+  actual: number;
+  showPercent: boolean;
+  showSold: boolean;
+}) {
+  const over = showSold && actual > sold && sold > 0;
   const pct = percentUsed({ sold, actual });
   const meta = [job.job_number, job.customer, job.site_address].filter(Boolean).join(' · ');
   return (
     <Pressable
       onPress={() => router.push({ pathname: '/job/[id]', params: { id: job.id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${job.name}, ${formatHours(actual)} of ${formatHours(sold)} hours`}
+      accessibilityLabel={showSold ? `${job.name}, ${formatHours(actual)} of ${formatHours(sold)} hours` : `${job.name}, ${formatHours(actual)} hours`}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: Colors.surfacePressed }]}
     >
       <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
@@ -124,7 +143,7 @@ function JobRow({ job, sold, actual, showPercent }: { job: Job; sold: number; ac
       </View>
       <View style={styles.hours}>
         <Text style={[styles.actual, over && { color: Colors.danger }]}>{formatHours(actual)}</Text>
-        <Text style={styles.sold}>of {formatHours(sold)} hrs</Text>
+        <Text style={styles.sold}>{showSold ? `of ${formatHours(sold)} hrs` : 'hrs logged'}</Text>
         {showPercent && pct !== null ? (
           <Text style={[styles.pct, over && { color: Colors.danger }]}>{pct}%</Text>
         ) : null}

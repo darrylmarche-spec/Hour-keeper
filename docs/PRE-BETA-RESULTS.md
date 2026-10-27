@@ -1,11 +1,11 @@
 # Pre-beta check results
 
 Results for the six checks in `docs/PRE-BETA-CHECKS.md`. Updated in each
-pull request that works on one. Last updated 25 Oct 2026.
+pull request that works on one. Last updated 27 Oct 2026.
 
 | # | Check | Status |
 |---|-------|--------|
-| 1 | Quoted figures never reach a tech's phone | **Fail today.** Fix not built yet. |
+| 1 | Quoted figures never reach a tech's phone | **Built and passing in tests.** Not protecting the live data until migrations 0013 and 0014 are applied (see below). |
 | 2 | Photos carry no location data | **Fixed and passing** (tested in the web app; not yet on a real phone camera) |
 | 3 | Nobody's work is silently lost or overwritten | **Fixed and passing** (a: clash, b: refused change, c: deleted while offline). Tested on a real Postgres, in the sync tests and in a two-browser run. Not yet on real phones. |
 | 4 | Problem reports don't record activity | **Pass** |
@@ -14,6 +14,54 @@ pull request that works on one. Last updated 25 Oct 2026.
 
 Also done in the same pull request: the report no longer ranks people by
 hours (see "Related change").
+
+## 1. Quoted figures never reach a tech's phone
+
+**Before the fix: fail.** Row-level security works per row, not per column,
+so a tech's phone downloaded every task's sold hours and the job's quoted
+total, and the app only hid them on screen. The standard hours templates,
+which carry the same figures, were readable by techs too.
+
+**What it does now (idea 1).**
+- Sold hours (one per task) and the quoted total (one per job) live in two
+  new tables, `task_budgets` and `job_budgets`. Only admins, PMs and
+  supervisors can read or write them. For a tech the database answers with
+  nothing. The standard hours templates are office-only too.
+- Migration `0013_budget_figures.sql` creates the tables, copies today's
+  figures across, and keeps them in step with the old columns, so the app
+  that is live today keeps working while the new one rolls out.
+- Migration `0014_drop_old_budget_columns.sql` then drops the old columns
+  (`tasks.sold_hours`, `jobs.quoted_total_hours`), so a tech's phone has no
+  way to receive them. Apply it only once the new app is live.
+- The new app also discards those two columns if the server still sends them,
+  and removes any left on a phone by an older version (saved rows and
+  changes waiting to send).
+- A tech sees hours only: the Jobs list ("hrs logged"), the job screen
+  ("Hours logged"), the task screen, the Reports list and their own report
+  and PDF carry no sold, remaining, over, under or percentage figures. There
+  is nothing on the phone to compute them from. Admins, PMs and supervisors
+  see what they saw before.
+
+**How it was tested.**
+- 10 tests on a real Postgres (PGlite, every migration run in order): a tech
+  sees their job and tasks but zero budget rows, can't write them, can't
+  read the templates; signed-out users get nothing; the three office roles
+  can read and change them; no table a tech can read has a sold or quoted
+  column (that last one runs with 0014 applied); the old app's writes still
+  work between 0013 and 0014; and figures that existed before 0013 were
+  copied across.
+- Report tests: a tech's report and PDF contain none of Sold, Over, Under,
+  Remaining or Used, and the sold totals appear nowhere in the document.
+- Browser run (tech and supervisor on the same fake server): the tech's
+  screens show hours only; the tech's saved data on the phone contains no
+  `sold_hours` or `quoted_total_hours` and no budget rows; the server's
+  answers to the tech's budget and template requests are empty; a
+  supervisor still sees Sold, Remaining and the sheet-total warning, and a
+  change to a sold figure is saved to the office-only table and not to the
+  task row.
+
+**Not covered.** Real phones. Sold figures also still appear in anything an
+office user shares: a PM's PDF is the PM's to send.
 
 ## 2. Photos carry no location data
 

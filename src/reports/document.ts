@@ -38,9 +38,13 @@ export function dayText(day: string): string {
 
 export function reportDoc(r: JobReport, opts: { showPercent: boolean }): ReportDoc {
   const { job } = r;
-  const pctCols = opts.showPercent ? ['Used'] : [];
-  const lineCells = (l: Line) => [h(l.sold), h(l.actual), signed(l.variance), ...(opts.showPercent ? [pct(l)] : [])];
-  const numeric = opts.showPercent ? [2, 3, 4, 5] : [2, 3, 4];
+  // A report with no sold figures (a tech's) shows hours worked and nothing else.
+  const sold = r.showSold;
+  const showPercent = sold && opts.showPercent;
+  const pctCols = showPercent ? ['Used'] : [];
+  const lineCells = (l: Line) => (sold ? [h(l.sold), h(l.actual), signed(l.variance), ...(showPercent ? [pct(l)] : [])] : [h(l.actual)]);
+  const numeric = !sold ? [2] : showPercent ? [2, 3, 4, 5] : [2, 3, 4];
+  const soldCols = sold ? ['Sold', 'Actual', 'Over / under'] : ['Actual'];
 
   // Tasks, grouped under their phase rows.
   const rows: string[][] = [];
@@ -48,22 +52,22 @@ export function reportDoc(r: JobReport, opts: { showPercent: boolean }): ReportD
   const over: [number, number][] = [];
   for (const p of r.phases) {
     strong.push(rows.length);
-    if (p.variance > 0) over.push([rows.length, 4]);
+    if (sold && p.variance > 0) over.push([rows.length, 4]);
     rows.push(['', p.name.toUpperCase(), ...lineCells(p)]);
     for (const t of p.tasks) {
-      if (t.variance > 0) over.push([rows.length, 4]);
+      if (sold && t.variance > 0) over.push([rows.length, 4]);
       const tag = t.kind === 'extra_productive' ? ' (extra · productive)' : t.kind === 'extra_non_productive' ? ' (extra · non-productive)' : '';
       rows.push([t.line_no, t.name + tag, ...lineCells(t)]);
     }
   }
   strong.push(rows.length);
-  if (r.totals.variance > 0) over.push([rows.length, 4]);
+  if (sold && r.totals.variance > 0) over.push([rows.length, 4]);
   rows.push(['', 'JOB TOTAL', ...lineCells(r.totals)]);
 
   const tables: DocTable[] = [
     {
-      heading: 'Sold vs actual by task',
-      columns: ['Line', 'Task', 'Sold', 'Actual', 'Over / under', ...pctCols],
+      heading: sold ? 'Sold vs actual by task' : 'Hours by task',
+      columns: ['Line', 'Task', ...soldCols, ...pctCols],
       numeric,
       rows,
       strong,
@@ -72,7 +76,7 @@ export function reportDoc(r: JobReport, opts: { showPercent: boolean }): ReportD
     {
       heading: 'Planned work and extras',
       note: 'Extras are hours booked to the "Other" lines: variations (productive) and site readiness (non-productive).',
-      columns: ['Type', 'Sold', 'Actual', 'Over / under', ...pctCols],
+      columns: ['Type', ...soldCols, ...pctCols],
       numeric: numeric.map((i) => i - 1),
       rows: [
         ['Planned work', ...lineCells(r.planned)],
@@ -106,12 +110,14 @@ export function reportDoc(r: JobReport, opts: { showPercent: boolean }): ReportD
     });
   }
 
-  const summary: [string, string][] = [
-    ['Sold', `${h(r.totals.sold)} hrs`],
-    ['Actual', `${h(r.totals.actual)} hrs`],
-    [r.totals.variance > 0 ? 'Over' : 'Under', `${h(Math.abs(r.totals.variance))} hrs`],
-  ];
-  if (opts.showPercent) summary.push(['Used', pct(r.totals)]);
+  const summary: [string, string][] = sold
+    ? [
+        ['Sold', `${h(r.totals.sold)} hrs`],
+        ['Actual', `${h(r.totals.actual)} hrs`],
+        [r.totals.variance > 0 ? 'Over' : 'Under', `${h(Math.abs(r.totals.variance))} hrs`],
+      ]
+    : [['Hours logged', `${h(r.totals.actual)} hrs`]];
+  if (showPercent) summary.push(['Used', pct(r.totals)]);
 
   const details: [string, string][] = (
     [
@@ -129,7 +135,7 @@ export function reportDoc(r: JobReport, opts: { showPercent: boolean }): ReportD
 
   return {
     title: job.name,
-    subtitle: 'Sold vs actual hours',
+    subtitle: sold ? 'Sold vs actual hours' : 'Hours logged',
     details,
     summary,
     tables,

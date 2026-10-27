@@ -28,11 +28,11 @@ async function build(r: Rules): Promise<World> {
   const [job] = await r.admin<{ id: string }>(`insert into public.jobs (name, status) values ('Highett', 'released') returning id`);
   const [phase] = await r.admin<{ id: string }>(`insert into public.phases (job_id, name) values ($1, 'Site setup') returning id`, [job.id]);
   const [task] = await r.admin<{ id: string }>(
-    `insert into public.tasks (job_id, phase_id, line_no, name, sold_hours) values ($1, $2, '1', 'Induction', 8) returning id`,
+    `insert into public.tasks (job_id, phase_id, line_no, name) values ($1, $2, '1', 'Induction') returning id`,
     [job.id, phase.id],
   );
   const [removedTask] = await r.admin<{ id: string }>(
-    `insert into public.tasks (job_id, phase_id, line_no, name, sold_hours, deleted_at) values ($1, $2, '2', 'Hoisting', 4, now()) returning id`,
+    `insert into public.tasks (job_id, phase_id, line_no, name, deleted_at) values ($1, $2, '2', 'Hoisting', now()) returning id`,
     [job.id, phase.id],
   );
   await r.admin(`insert into public.job_members (job_id, user_id) values ($1, $2)`, [job.id, tech]);
@@ -134,7 +134,7 @@ describe('database rules behind "nobody\'s work is silently lost"', () => {
     });
 
     it('lets an entry that is already on a task be removed even if the task is later removed', async () => {
-      const [t] = await r.admin<{ id: string }>(`insert into public.tasks (job_id, phase_id, line_no, name, sold_hours) values ($1, $2, '9', 'Temp', 1) returning id`, [w.job, w.phase]);
+      const [t] = await r.admin<{ id: string }>(`insert into public.tasks (job_id, phase_id, line_no, name) values ($1, $2, '9', 'Temp') returning id`, [w.job, w.phase]);
       const [e] = await r.as<{ id: string }>(
         w.tech,
         `insert into public.time_entries (job_id, task_id, user_id, work_date, hours) values ($1, $2, $3, '2026-10-22', 1) returning id`,

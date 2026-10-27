@@ -14,9 +14,15 @@ export interface JobTotals extends HourTotals {
 const toCents = (n: number) => Math.round((Number(n) || 0) * 100);
 const fromCents = (c: number) => c / 100;
 
-export function jobTotals(phases: readonly Phase[], tasks: readonly Task[], entries: readonly TimeEntry[]): JobTotals {
+// `soldByTask` is only on the office's phones; without it every sold figure is 0.
+export function jobTotals(
+  phases: readonly Phase[],
+  tasks: readonly Task[],
+  entries: readonly TimeEntry[],
+  soldByTask: ReadonlyMap<string, number> = new Map(),
+): JobTotals {
   const taskCents = new Map<string, { sold: number; actual: number }>();
-  for (const t of tasks) taskCents.set(t.id, { sold: toCents(t.sold_hours), actual: 0 });
+  for (const t of tasks) taskCents.set(t.id, { sold: toCents(soldByTask.get(t.id) ?? 0), actual: 0 });
   for (const e of entries) {
     const t = taskCents.get(e.task_id);
     if (t) t.actual += toCents(e.hours);

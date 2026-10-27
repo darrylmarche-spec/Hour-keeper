@@ -167,6 +167,24 @@ export function useRejectedReason(table: TableName, id: string): string | null {
   );
 }
 
+// The sold figures. Only the office's phones ever receive these rows (the
+// database sends nothing to anyone else), so for a tech both maps are empty.
+export function useBudgets(): { soldByTask: ReadonlyMap<string, number>; quotedByJob: ReadonlyMap<string, number | null> } {
+  const taskRows = useTable('task_budgets');
+  const jobRows = useTable('job_budgets');
+  return useMemo(
+    () => ({
+      soldByTask: new Map(taskRows.filter((r) => !r.deleted_at).map((r) => [r.id, Number(r.sold_hours)] as const)),
+      quotedByJob: new Map(
+        jobRows
+          .filter((r) => !r.deleted_at)
+          .map((r) => [r.id, r.quoted_total_hours === null ? null : Number(r.quoted_total_hours)] as const),
+      ),
+    }),
+    [taskRows, jobRows],
+  );
+}
+
 export function useMe(): Profile | undefined {
   const { userId } = useAuth();
   return useRow('profiles', userId ?? undefined);
