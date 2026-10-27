@@ -21,3 +21,7 @@ export const seesPercentages = (r?: Role) => r === 'admin' || r === 'pm';
 
 // Setting up jobs (create, edit, assign, release) — PMs, supervisors, admins.
 export const managesJobs = (r?: Role) => r === 'admin' || r === 'pm' || r === 'supervisor';
+
+// Sold hours, what's left, and the job's quoted total are for the office. The
+// database doesn't send them to a tech's phone; the screens use this to match.
+export const seesSoldHours = (r?: Role) => r === 'admin' || r === 'pm' || r === 'supervisor';

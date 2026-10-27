@@ -48,6 +48,8 @@ export type PeopleScope = 'all' | 'self';
 export interface JobReport {
   job: Job;
   generatedAt: string;
+  // False when the report carries hours worked only (no sold, over or under).
+  showSold: boolean;
   totals: Line;
   planned: Line;
   extraProductive: Line;
@@ -67,7 +69,7 @@ export interface JobReport {
 }
 
 // Sums are kept in hundredths so 0.1 + 0.2 style errors never show.
-const c = (n: number | string) => Math.round((Number(n) || 0) * 100);
+const c = (n: number | string | undefined) => Math.round((Number(n) || 0) * 100);
 export function line(soldCents: number, actualCents: number): Line {
   return {
     sold: soldCents / 100,
@@ -81,6 +83,9 @@ export interface ReportInput {
   job: Job;
   phases: readonly Phase[];
   tasks: readonly Task[];
+  // Sold hours by task id. Leave out for a report with no sold figures at all
+  // (a tech's copy: their phone never has them).
+  soldByTask?: ReadonlyMap<string, number>;
   entries: readonly TimeEntry[];
   profiles: readonly Profile[];
   comments: readonly Comment[];
@@ -116,7 +121,7 @@ export function buildJobReport(input: ReportInput): JobReport {
     const lines: TaskLine[] = tasks
       .filter((t) => t.phase_id === p.id)
       .map((t) => {
-        const s = c(t.sold_hours);
+        const s = c(input.soldByTask?.get(t.id));
         const a = actualByTask.get(t.id) ?? 0;
         ps += s;
         pa += a;
@@ -126,7 +131,7 @@ export function buildJobReport(input: ReportInput): JobReport {
       });
     return { id: p.id, name: p.name, tasks: lines, ...line(ps, pa) };
   });
-  const sold = tasks.reduce((s, t) => s + c(t.sold_hours), 0);
+  const sold = tasks.reduce((s, t) => s + c(input.soldByTask?.get(t.id)), 0);
   // Hours on tasks that have since been removed still count toward the job.
   const actual = entries.reduce((s, e) => s + c(e.hours), 0);
 
@@ -164,6 +169,7 @@ export function buildJobReport(input: ReportInput): JobReport {
   return {
     job,
     generatedAt: (input.now ?? new Date()).toISOString(),
+    showSold: input.soldByTask !== undefined,
     totals: line(sold, actual),
     planned: line(...kindSums.planned),
     extraProductive: line(...kindSums.extra_productive),

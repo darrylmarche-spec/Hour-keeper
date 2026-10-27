@@ -3,9 +3,9 @@ import { router } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { CommandBar, EmptyState, SectionBar } from '@/components/ui';
-import { useMe, useTable } from '@/data/DataProvider';
+import { useBudgets, useMe, useTable } from '@/data/DataProvider';
 import { formatHours } from '@/data/totals';
-import { seesAllJobs, seesPercentages } from '@/lib/roles';
+import { seesAllJobs, seesPercentages, seesSoldHours } from '@/lib/roles';
 import { compareJobs } from '@/reports/compare';
 import Colors, { Fonts } from '@/theme/colors';
 
@@ -17,24 +17,26 @@ export default function ReportsScreen() {
   const tasks = useTable('tasks');
   const entries = useTable('time_entries');
   const showPct = seesPercentages(me.role);
+  const showSold = seesSoldHours(me.role);
+  const { soldByTask } = useBudgets();
 
   const sections = useMemo(() => {
     const mine = (seesAllJobs(me.role) ? jobs : jobs.filter((j) => members.some((m) => m.job_id === j.id && m.user_id === me.id))).filter(
       (j) => j.status !== 'draft',
     );
-    const rows = compareJobs(mine, tasks, entries).jobs;
+    const rows = compareJobs(mine, tasks, entries, soldByTask).jobs;
     const byName = (a: (typeof rows)[number], b: (typeof rows)[number]) => a.job.name.localeCompare(b.job.name);
     return [
       { title: 'Complete', data: rows.filter((r) => r.job.status === 'complete').sort(byName) },
       { title: 'In the field', data: rows.filter((r) => r.job.status === 'released').sort(byName) },
     ].filter((s) => s.data.length);
-  }, [jobs, members, tasks, entries, me.id, me.role]);
+  }, [jobs, members, tasks, entries, soldByTask, me.id, me.role]);
 
   return (
     <View style={styles.screen}>
       <CommandBar
         title="Reports"
-        subtitle="Sold vs actual hours"
+        subtitle={showSold ? 'Sold vs actual hours' : 'Hours logged'}
         right={
           showPct ? (
             <Pressable
@@ -56,7 +58,7 @@ export default function ReportsScreen() {
         stickySectionHeadersEnabled
         contentContainerStyle={{ paddingBottom: 32, flexGrow: 1 }}
         renderItem={({ item }) => {
-          const over = item.variance > 0;
+          const over = showSold && item.variance > 0;
           return (
             <Pressable
               onPress={() => router.push({ pathname: '/reports/[id]', params: { id: item.job.id } })}
@@ -73,14 +75,16 @@ export default function ReportsScreen() {
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={[styles.hours, over && { color: Colors.danger }]}>
-                  {formatHours(item.actual)} / {formatHours(item.sold)}
+                  {showSold ? `${formatHours(item.actual)} / ${formatHours(item.sold)}` : formatHours(item.actual)}
                 </Text>
                 <Text style={[styles.sub, over && { color: Colors.danger }]}>
-                  {showPct && item.pct !== null
-                    ? `${item.pct}% used`
-                    : over
-                      ? `${formatHours(item.variance)} over`
-                      : `${formatHours(-item.variance)} left`}
+                  {!showSold
+                    ? 'hrs logged'
+                    : showPct && item.pct !== null
+                      ? `${item.pct}% used`
+                      : over
+                        ? `${formatHours(item.variance)} over`
+                        : `${formatHours(-item.variance)} left`}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
@@ -91,7 +95,7 @@ export default function ReportsScreen() {
           <EmptyState
             icon="bar-chart-outline"
             title="No reports yet"
-            message="Once a job is released to the field, its sold vs actual report shows here — with Share and Save PDF."
+            message="Once a job is released to the field, its report shows here — with Share and Save PDF."
           />
         }
       />

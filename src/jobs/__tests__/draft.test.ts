@@ -131,32 +131,49 @@ describe('saving', () => {
     expect(rows.phases).toHaveLength(9);
     expect(rows.tasks).toHaveLength(59);
     expect(rows.tasks.every((t) => t.job_id === 'job1')).toBe(true);
-    expect(rows.tasks.reduce((s, t) => s + t.sold_hours, 0)).toBe(216);
+    // The sold figures are saved separately, one per task, never on the task row.
+    expect(rows.tasks.some((t) => 'sold_hours' in t)).toBe(false);
+    expect(rows.taskBudgets).toHaveLength(59);
+    expect(rows.taskBudgets.reduce((s, b) => s + b.sold_hours, 0)).toBe(216);
   });
 
   it('only sends what changed when editing, and soft-deletes removed rows', () => {
-    const job = { id: 'j', name: 'J', job_number: '', customer: '', site_address: '', job_type: 'construction', status: 'draft', quoted_total_hours: null, deadline: null } as const;
+    const job = { id: 'j', name: 'J', job_number: '', customer: '', site_address: '', job_type: 'construction', status: 'draft', deadline: null } as const;
     const phases: Phase[] = [
       { id: 'p1', job_id: 'j', name: 'A', sort_order: 0 },
       { id: 'p2', job_id: 'j', name: 'B', sort_order: 1 },
     ];
     const tasks: Task[] = [
-      { id: 't1', job_id: 'j', phase_id: 'p1', line_no: '1', name: 'One', sold_hours: 4, kind: 'planned', sort_order: 0 },
-      { id: 't2', job_id: 'j', phase_id: 'p1', line_no: '2', name: 'Two', sold_hours: 2, kind: 'planned', sort_order: 1 },
-      { id: 't3', job_id: 'j', phase_id: 'p2', line_no: '3', name: 'Three', sold_hours: 1, kind: 'planned', sort_order: 0 },
+      { id: 't1', job_id: 'j', phase_id: 'p1', line_no: '1', name: 'One', kind: 'planned', sort_order: 0 },
+      { id: 't2', job_id: 'j', phase_id: 'p1', line_no: '2', name: 'Two', kind: 'planned', sort_order: 1 },
+      { id: 't3', job_id: 'j', phase_id: 'p2', line_no: '3', name: 'Three', kind: 'planned', sort_order: 0 },
     ];
-    const d = draftFromJob(job, phases, tasks, [
-      { id: 'e', job_id: 'j', task_id: 't1', user_id: 'u', work_date: '2026-10-19', hours: 3, note: '', edited: false },
-    ]);
+    const soldByTask = new Map([['t1', 4], ['t2', 2], ['t3', 1]]);
+    const d = draftFromJob(
+      job,
+      phases,
+      tasks,
+      [{ id: 'e', job_id: 'j', task_id: 't1', user_id: 'u', work_date: '2026-10-19', hours: 3, note: '', edited: false }],
+      { soldByTask },
+    );
     expect(d.phases[0].tasks[0].loggedHours).toBe(3);
 
     d.phases[0].tasks[1].hours = '5'; // change t2
     d.phases.splice(1, 1); // remove phase B and its task
-    const rows = draftToRows(d, { jobId: 'j', existingJob: job, existingPhases: phases, existingTasks: tasks, userId: 'u', newId, now: 'NOW' });
-    expect(rows.tasks.map((t) => [t.id, t.sold_hours, t.deleted_at ?? null])).toEqual([
-      ['t2', 5, null],
-      ['t3', 1, 'NOW'],
-    ]);
+    const rows = draftToRows(d, {
+      jobId: 'j',
+      existingJob: job,
+      existingPhases: phases,
+      existingTasks: tasks,
+      existingBudgets: { soldByTask },
+      userId: 'u',
+      newId,
+      now: 'NOW',
+    });
+    // The sold figure moved, so only its budget row is sent; the task itself is unchanged.
+    expect(rows.tasks.map((t) => [t.id, t.deleted_at ?? null])).toEqual([['t3', 'NOW']]);
+    expect(rows.taskBudgets).toEqual([{ id: 't2', sold_hours: 5 }]);
+    expect(rows.jobBudget).toBeNull();
     expect(rows.phases.map((p) => [p.id, p.deleted_at ?? null])).toEqual([['p2', 'NOW']]);
     expect(rows.job.status).toBe('draft');
   });

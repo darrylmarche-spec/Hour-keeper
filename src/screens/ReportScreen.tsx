@@ -3,8 +3,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { DocTableView } from '@/components/DocTableView';
 import { Button, CommandBar, EmptyState, goBackOrHome, Notice } from '@/components/ui';
-import { useMe, useRow, useTable } from '@/data/DataProvider';
-import { seesPercentages } from '@/lib/roles';
+import { useBudgets, useMe, useRow, useTable } from '@/data/DataProvider';
+import { seesPercentages, seesSoldHours } from '@/lib/roles';
 import { pdfName, reportDoc } from '@/reports/document';
 import { canSharePdf, preparePdf, PreparedPdf, savePdf, sharePdf } from '@/reports/exportPdf';
 import { buildJobReport } from '@/reports/jobReport';
@@ -23,6 +23,8 @@ export default function ReportScreen() {
   const comments = useTable('comments');
   const attachments = useTable('attachments');
   const showPercent = seesPercentages(me.role);
+  const { soldByTask } = useBudgets();
+  const sold = seesSoldHours(me.role);
 
   const doc = useMemo(
     () =>
@@ -32,6 +34,7 @@ export default function ReportScreen() {
               job,
               phases,
               tasks,
+              soldByTask: sold ? soldByTask : undefined,
               entries,
               profiles,
               comments,
@@ -43,7 +46,7 @@ export default function ReportScreen() {
             { showPercent },
           )
         : null,
-    [job, phases, tasks, entries, profiles, comments, attachments, showPercent, me.id, me.role],
+    [job, phases, tasks, soldByTask, sold, entries, profiles, comments, attachments, showPercent, me.id, me.role],
   );
 
   // The PDF is made ahead of time so Share works straight from the tap

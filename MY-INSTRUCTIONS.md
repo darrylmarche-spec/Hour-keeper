@@ -30,7 +30,7 @@
 
 | Role | Can do |
 |---|---|
-| Field Tech | Sees jobs they're on; logs their own hours, photos, notes |
+| Field Tech | Sees jobs they're on; logs their own hours, photos, notes. Sees hours only, never sold hours, what's left or the quoted total |
 | Supervisor | Sets up and edits jobs, sees all jobs, plain-hours reports |
 | Project Manager | Everything a supervisor can, plus **% used** and **Compare jobs** |
 | Admin | Everything, plus people, roles and the feedback inbox |

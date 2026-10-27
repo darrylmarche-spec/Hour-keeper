@@ -142,8 +142,10 @@ export default function NewJobScreen() {
     });
     const items: { table: TableName; row: BaseRow }[] = [
       { table: 'jobs', row: rows.job },
+      ...(rows.jobBudget ? [{ table: 'job_budgets' as const, row: rows.jobBudget }] : []),
       ...rows.phases.map((row) => ({ table: 'phases' as const, row })),
       ...rows.tasks.map((row) => ({ table: 'tasks' as const, row })),
+      ...rows.taskBudgets.map((row) => ({ table: 'task_budgets' as const, row })),
     ];
     await saveMany(items);
     setBusy(false);

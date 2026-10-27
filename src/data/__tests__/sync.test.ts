@@ -576,3 +576,41 @@ describe('parseTs', () => {
     expect(parseTs('2026-10-17T00:19:11.5Z')).toBe(Date.parse('2026-10-17T00:19:11.500Z'));
   });
 });
+
+describe('sold figures left on a phone by an older version of the app', () => {
+  it('are removed when the app opens, from saved rows and from waiting changes', async () => {
+    const storage = new MemoryStorage();
+    const prefix = 'hk:tech1';
+    storage.data.set(`${prefix}:t:tasks`, JSON.stringify([{ id: 't1', job_id: 'j', phase_id: 'p', line_no: '1', name: 'Induction', sold_hours: 8, kind: 'planned', sort_order: 0 }]));
+    storage.data.set(`${prefix}:t:jobs`, JSON.stringify([{ id: 'j', name: 'Highett', quoted_total_hours: 216, status: 'released' }]));
+    storage.data.set(
+      `${prefix}:outbox`,
+      JSON.stringify([{ seq: 1, table: 'tasks', row: { id: 't1', name: 'Induction', sold_hours: 9 }, base: { id: 't1', name: 'Induction', sold_hours: 8 }, enqueuedAt: 'x' }]),
+    );
+    const store = new LocalStore(storage, prefix);
+    await store.load();
+    expect(store.get('tasks', 't1')).not.toHaveProperty('sold_hours');
+    expect(store.get('jobs', 'j')).not.toHaveProperty('quoted_total_hours');
+    expect(JSON.stringify(storage.data.get(`${prefix}:t:tasks`))).not.toContain('sold_hours');
+    expect(JSON.stringify(storage.data.get(`${prefix}:t:jobs`))).not.toContain('quoted_total_hours');
+    expect(storage.data.get(`${prefix}:outbox`)).not.toContain('sold_hours');
+    // Nothing else about the rows changed.
+    expect(store.get('tasks', 't1')).toMatchObject({ name: 'Induction', line_no: '1' });
+  });
+});
+
+describe('saving only some of a row’s fields', () => {
+  it('keeps the rest of the stored row, so it is sent as an edit and not as a new row', async () => {
+    const { store, server, engine } = await setup();
+    await store.write('task_budgets', { id: 't1', sold_hours: 4 });
+    await engine.sync();
+    expect(store.get<BaseRow>('task_budgets', 't1')!.updated_at).toBeTruthy();
+
+    server.upserts.length = 0;
+    await store.write('task_budgets', { id: 't1', sold_hours: 5 } as BaseRow);
+    expect(store.get<BaseRow>('task_budgets', 't1')!.updated_at).toBeTruthy();
+    await engine.sync();
+    expect(server.tables.get('task_budgets')!.get('t1')).toMatchObject({ sold_hours: 5 });
+    expect(server.sent[server.sent.length - 1]).toEqual({ id: 't1', fields: ['sold_hours'], force: false });
+  });
+});

@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } fr
 import { JobDetailsForm } from '@/components/JobDetailsForm';
 import { TaskEditor } from '@/components/TaskEditor';
 import { Button, CommandBar, EmptyState, goBackOrHome, Notice, SectionBar } from '@/components/ui';
-import { newId, useMe, useRow, useSaveMany, useTable } from '@/data/DataProvider';
+import { newId, useBudgets, useMe, useRow, useSaveMany, useTable } from '@/data/DataProvider';
 import { BaseRow, TableName } from '@/data/schema';
 import { formatHours } from '@/data/totals';
 import { checkDraft, draftFromJob, draftToRows, draftTotal, JobDraft } from '@/jobs/draft';
@@ -19,9 +19,10 @@ export default function EditJobScreen() {
   const phases = useTable('phases');
   const tasks = useTable('tasks');
   const entries = useTable('time_entries');
+  const budgets = useBudgets();
   const saveMany = useSaveMany();
 
-  const initial = useMemo(() => (job ? draftFromJob(job, phases, tasks, entries) : null), [job?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const initial = useMemo(() => (job ? draftFromJob(job, phases, tasks, entries, { soldByTask: budgets.soldByTask, quotedTotal: budgets.quotedByJob.get(job.id) }) : null), [job?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [draft, setDraft] = useState<JobDraft | null>(initial);
   const [showProblems, setShowProblems] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -67,14 +68,17 @@ export default function EditJobScreen() {
       existingJob: job,
       existingPhases: phases,
       existingTasks: tasks,
+      existingBudgets: { soldByTask: budgets.soldByTask, quotedTotal: budgets.quotedByJob.get(job.id) },
       userId: me.id,
       newId,
     });
     // Parents first: job, new/renamed phases, tasks, then removed phases.
     const items: { table: TableName; row: BaseRow }[] = [
       { table: 'jobs', row: rows.job },
+      ...(rows.jobBudget ? [{ table: 'job_budgets' as const, row: rows.jobBudget }] : []),
       ...rows.phases.filter((p) => !p.deleted_at).map((row) => ({ table: 'phases' as const, row })),
       ...rows.tasks.map((row) => ({ table: 'tasks' as const, row })),
+      ...rows.taskBudgets.map((row) => ({ table: 'task_budgets' as const, row })),
       ...rows.phases.filter((p) => p.deleted_at).map((row) => ({ table: 'phases' as const, row })),
     ];
     await saveMany(items);

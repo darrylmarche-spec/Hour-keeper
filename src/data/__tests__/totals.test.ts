@@ -2,16 +2,19 @@ import { Phase, Task, TimeEntry } from '../schema';
 import { formatHours, jobTotals, percentUsed, quotedMismatch, variance } from '../totals';
 
 const phase = (id: string): Phase => ({ id, job_id: 'j', name: id, sort_order: 0 });
-const task = (id: string, phase_id: string, sold_hours: number): Task => ({
+const soldMap = new Map<string, number>();
+const task = (id: string, phase_id: string, sold_hours: number): Task => {
+  soldMap.set(id, sold_hours);
+  return {
   id,
   job_id: 'j',
   phase_id,
   line_no: id,
   name: id,
-  sold_hours,
   kind: 'planned',
   sort_order: 0,
-});
+  };
+};
 const entry = (id: string, task_id: string, hours: number): TimeEntry => ({
   id,
   job_id: 'j',
@@ -29,6 +32,7 @@ describe('jobTotals', () => {
       [phase('p1'), phase('p2')],
       [task('a', 'p1', 4), task('b', 'p1', 3), task('c', 'p2', 8)],
       [entry('1', 'a', 2.5), entry('2', 'a', 2.5), entry('3', 'c', 6)],
+      soldMap,
     );
     expect(t.sold).toBe(15);
     expect(t.actual).toBe(11);
@@ -39,13 +43,13 @@ describe('jobTotals', () => {
   });
 
   it('has no floating point drift', () => {
-    const t = jobTotals([phase('p')], [task('a', 'p', 0.3)], [entry('1', 'a', 0.1), entry('2', 'a', 0.2)]);
+    const t = jobTotals([phase('p')], [task('a', 'p', 0.3)], [entry('1', 'a', 0.1), entry('2', 'a', 0.2)], soldMap);
     expect(t.byTask.get('a')).toEqual({ sold: 0.3, actual: 0.3 });
     expect(variance(t.byTask.get('a')!)).toBe(0);
   });
 
   it('ignores entries for tasks not on the job', () => {
-    const t = jobTotals([phase('p')], [task('a', 'p', 1)], [entry('1', 'zzz', 5)]);
+    const t = jobTotals([phase('p')], [task('a', 'p', 1)], [entry('1', 'zzz', 5)], soldMap);
     expect(t.actual).toBe(0);
   });
 });

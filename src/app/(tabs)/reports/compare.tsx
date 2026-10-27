@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, CommandBar, EmptyState, goBackOrHome, SectionBar } from '@/components/ui';
-import { useMe, useTable } from '@/data/DataProvider';
+import { useBudgets, useMe, useTable } from '@/data/DataProvider';
 import { formatHours } from '@/data/totals';
 import { seesPercentages } from '@/lib/roles';
 import { compareJobs } from '@/reports/compare';
@@ -22,10 +22,11 @@ export default function CompareScreen() {
   const tasks = useTable('tasks');
   const entries = useTable('time_entries');
   const [filter, setFilter] = useState<Filter>('all');
+  const { soldByTask } = useBudgets();
 
   const result = useMemo(
-    () => compareJobs(jobs.filter((j) => j.status !== 'draft' && (filter === 'all' || j.status === filter)), tasks, entries),
-    [jobs, tasks, entries, filter],
+    () => compareJobs(jobs.filter((j) => j.status !== 'draft' && (filter === 'all' || j.status === filter)), tasks, entries, soldByTask),
+    [jobs, tasks, entries, soldByTask, filter],
   );
 
   if (!seesPercentages(me.role)) {

@@ -4,10 +4,10 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { JobActions } from '@/components/JobActions';
 import { Button, CommandBar, EmptyState, goBackOrHome, Notice, Pill } from '@/components/ui';
-import { useMe, useRow, useTable } from '@/data/DataProvider';
+import { useBudgets, useMe, useRow, useTable } from '@/data/DataProvider';
 import { Task } from '@/data/schema';
 import { formatHours, HourTotals, jobTotals, percentUsed, quotedMismatch, variance } from '@/data/totals';
-import { managesJobs, seesPercentages, STATUS_LABELS } from '@/lib/roles';
+import { managesJobs, seesPercentages, seesSoldHours, STATUS_LABELS } from '@/lib/roles';
 import Colors, { Fonts } from '@/theme/colors';
 
 export default function JobScreen() {
@@ -19,6 +19,7 @@ export default function JobScreen() {
   const allEntries = useTable('time_entries');
   const allComments = useTable('comments');
   const allAttachments = useTable('attachments');
+  const { soldByTask, quotedByJob } = useBudgets();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const { phases, tasksByPhase, totals, extras } = useMemo(() => {
@@ -32,8 +33,8 @@ export default function JobScreen() {
     for (const r of [...allComments, ...allAttachments]) {
       if (r.job_id === id && r.task_id) extras.set(r.task_id, (extras.get(r.task_id) ?? 0) + 1);
     }
-    return { phases, tasksByPhase, totals: jobTotals(phases, tasks, entries), extras };
-  }, [allPhases, allTasks, allEntries, allComments, allAttachments, id]);
+    return { phases, tasksByPhase, totals: jobTotals(phases, tasks, entries, soldByTask), extras };
+  }, [allPhases, allTasks, allEntries, allComments, allAttachments, soldByTask, id]);
 
   if (!job) {
     return (
@@ -51,6 +52,8 @@ export default function JobScreen() {
   }
 
   const showPct = seesPercentages(me.role);
+  const showSold = seesSoldHours(me.role);
+  const quoted = quotedByJob.get(job.id) ?? null;
   const toggle = (pid: string) =>
     setCollapsed((s) => {
       const n = new Set(s);
@@ -68,13 +71,15 @@ export default function JobScreen() {
       />
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.summary}>
-          <Stat label="Sold" value={formatHours(totals.sold)} />
-          <Stat label="Actual" value={formatHours(totals.actual)} />
-          <Stat
-            label={variance(totals) > 0 ? 'Over' : 'Remaining'}
-            value={formatHours(Math.abs(variance(totals)))}
-            tone={variance(totals) > 0 ? 'bad' : 'ok'}
-          />
+          {showSold ? <Stat label="Sold" value={formatHours(totals.sold)} /> : null}
+          <Stat label={showSold ? 'Actual' : 'Hours logged'} value={formatHours(totals.actual)} />
+          {showSold ? (
+            <Stat
+              label={variance(totals) > 0 ? 'Over' : 'Remaining'}
+              value={formatHours(Math.abs(variance(totals)))}
+              tone={variance(totals) > 0 ? 'bad' : 'ok'}
+            />
+          ) : null}
           {showPct ? <Stat label="Used" value={pctText(totals)} tone={variance(totals) > 0 ? 'bad' : undefined} /> : null}
         </View>
 
@@ -87,7 +92,7 @@ export default function JobScreen() {
             style={({ pressed }) => [styles.reportLink, pressed && { backgroundColor: Colors.surfacePressed }]}
           >
             <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
-            <Text style={styles.reportText}>Sold vs actual report · PDF</Text>
+            <Text style={styles.reportText}>{showSold ? 'Sold vs actual report · PDF' : 'Hours report · PDF'}</Text>
             <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
           </Pressable>
         ) : null}
@@ -95,9 +100,9 @@ export default function JobScreen() {
         {liftLine(job) ? <Text style={styles.liftLine}>{liftLine(job)}</Text> : null}
 
         <View style={styles.notices}>
-          {managesJobs(me.role) && quotedMismatch(job.quoted_total_hours, totals.sold) ? (
+          {managesJobs(me.role) && quotedMismatch(quoted, totals.sold) ? (
             <Notice tone="warn">
-              The sheet total ({formatHours(job.quoted_total_hours!)} hrs) doesn’t match the task lines (
+              The sheet total ({formatHours(quoted!)} hrs) doesn’t match the task lines (
               {formatHours(totals.sold)} hrs). Reports use the task lines.
             </Notice>
           ) : null}
@@ -117,8 +122,8 @@ export default function JobScreen() {
               >
                 <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={Colors.textSecondary} />
                 <Text style={styles.phaseTitle}>{p.name}</Text>
-                <Text style={[styles.phaseHours, pt.actual > pt.sold && { color: Colors.danger }]}>
-                  {formatHours(pt.actual)} / {formatHours(pt.sold)}
+                <Text style={[styles.phaseHours, showSold && pt.actual > pt.sold && { color: Colors.danger }]}>
+                  {showSold ? `${formatHours(pt.actual)} / ${formatHours(pt.sold)}` : formatHours(pt.actual)}
                   {showPct && percentUsed(pt) !== null ? `  ·  ${percentUsed(pt)}%` : ''}
                 </Text>
               </Pressable>
@@ -129,6 +134,7 @@ export default function JobScreen() {
                       task={t}
                       totals={totals.byTask.get(t.id)!}
                       showPct={showPct}
+                      showSold={showSold}
                       extras={extras.get(t.id) ?? 0}
                       onPress={() => router.push({ pathname: '/job/[id]/task/[taskId]', params: { id: job.id, taskId: t.id } })}
                     />
@@ -138,7 +144,9 @@ export default function JobScreen() {
           );
         })}
 
-        <Text style={styles.footnote}>Hours shown are actual / sold. Tap a task to log hours, add notes or photos.</Text>
+        <Text style={styles.footnote}>
+          {showSold ? 'Hours shown are actual / sold. ' : 'Hours shown are what has been logged. '}Tap a task to log hours, add notes or photos.
+        </Text>
       </ScrollView>
     </View>
   );
@@ -182,22 +190,26 @@ function TaskRow({
   task,
   totals,
   showPct,
+  showSold,
   extras,
   onPress,
 }: {
   task: Task;
   totals: HourTotals;
   showPct: boolean;
+  showSold: boolean;
   extras: number;
   onPress: () => void;
 }) {
-  const over = totals.actual > totals.sold;
+  const over = showSold && totals.actual > totals.sold;
   const extra = task.kind !== 'planned';
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${task.name}, ${formatHours(totals.actual)} of ${formatHours(totals.sold)} hours`}
+      accessibilityLabel={
+        showSold ? `${task.name}, ${formatHours(totals.actual)} of ${formatHours(totals.sold)} hours` : `${task.name}, ${formatHours(totals.actual)} hours`
+      }
       style={({ pressed }) => [styles.task, pressed && { backgroundColor: Colors.surfacePressed }]}
     >
       <Text style={styles.lineNo}>{task.line_no}</Text>
@@ -215,7 +227,7 @@ function TaskRow({
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={[styles.taskHours, over && { color: Colors.danger }]}>
-          {formatHours(totals.actual)} / {formatHours(totals.sold)}
+          {showSold ? `${formatHours(totals.actual)} / ${formatHours(totals.sold)}` : formatHours(totals.actual)}
         </Text>
         {showPct && percentUsed(totals) !== null ? (
           <Text style={[styles.taskPct, over && { color: Colors.danger }]}>{percentUsed(totals)}%</Text>
