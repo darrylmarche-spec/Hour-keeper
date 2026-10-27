@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { changedFields, clashingFields, CONFLICT_MESSAGE, NOT_ALLOWED_MESSAGE } from './conflicts';
 import { Cursor } from './localStore';
 import { BaseRow, NUMERIC_COLUMNS, TableName } from './schema';
-import { Remote, RemoteError } from './sync';
+import { Remote, RemoteError, UpsertOptions } from './sync';
 
 // Columns the server owns. Sending them would be ignored by triggers anyway;
 // leaving them out keeps requests honest.
@@ -48,9 +49,7 @@ export function classifyError(err: PgError | Error | unknown, status?: number): 
 }
 
 function friendly(code: string, msg: string): string {
-  if (code === '42501' || /row-level security/i.test(msg)) {
-    return "You don't have permission to make this change (the job may have been closed or reassigned).";
-  }
+  if (code === '42501' || /row-level security/i.test(msg)) return NOT_ALLOWED_MESSAGE;
   if (code.startsWith('23')) return `The server rejected this change: ${msg}`;
   return msg;
 }
@@ -63,7 +62,12 @@ export class SupabaseRemote implements Remote {
   // isn't used because Postgres checks the INSERT rule even when the row
   // exists, which would refuse legitimate edits (e.g. a PM correcting a
   // tech's hours, or anyone editing their profile).
-  async upsert(table: TableName, row: BaseRow): Promise<BaseRow | null> {
+  //
+  // An update sends only the fields that were changed, and (unless forced)
+  // only applies if nobody else has changed those same fields since the edit
+  // began. If someone has, nothing is overwritten: the other person's version
+  // is handed back so the person can choose.
+  async upsert(table: TableName, row: BaseRow, opts: UpsertOptions = {}): Promise<BaseRow | null> {
     const body: Record<string, unknown> = { ...row };
     for (const k of SERVER_OWNED) delete body[k];
 
@@ -74,16 +78,34 @@ export class SupabaseRemote implements Remote {
       if (ins.error.code !== '23505') throw classifyError(ins.error, ins.status);
     }
 
-    const { id, ...changes } = body;
-    const upd = await this.run(() => this.client.from(table).update(changes).eq('id', id).select().maybeSingle());
-    if (upd.error) throw classifyError(upd.error, upd.status);
-    if (!upd.data) {
-      throw new RemoteError(
-        'rejected',
-        "You don't have permission to make this change (the job may have been closed or reassigned).",
-      );
+    const { id, ...rest } = body;
+    const base = opts.base as Record<string, unknown> | undefined;
+    const changes = base ? changedFields(rest, base) : rest; // no base: an older queued change, sent whole
+    if (base && Object.keys(changes).length === 0) return null; // nothing differs from what the server had
+
+    let q = this.client.from(table).update(changes).eq('id', id);
+    if (base && !opts.force) {
+      for (const k of Object.keys(changes)) {
+        const was = base[k];
+        q = was === null || was === undefined ? q.is(k, null) : q.eq(k, was as string | number | boolean);
+      }
     }
-    return normalise(table, upd.data);
+    const upd = await this.run(() => q.select().maybeSingle());
+    if (upd.error) throw classifyError(upd.error, upd.status);
+    if (upd.data) return normalise(table, upd.data);
+
+    // Nothing was updated: either someone else changed these fields first, or
+    // the server won't let this person change the row.
+    if (base && !opts.force) {
+      const cur = await this.run(() => this.client.from(table).select('*').eq('id', id).maybeSingle());
+      if (!cur.error && cur.data) {
+        const theirs = normalise(table, cur.data as Record<string, unknown>);
+        if (clashingFields(changes, base, theirs as unknown as Record<string, unknown>).length) {
+          throw new RemoteError('rejected', CONFLICT_MESSAGE, theirs);
+        }
+      }
+    }
+    throw new RemoteError('rejected', NOT_ALLOWED_MESSAGE);
   }
 
   private async run<T>(fn: () => PromiseLike<T>): Promise<T> {

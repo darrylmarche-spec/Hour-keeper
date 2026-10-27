@@ -14,13 +14,22 @@ export class RemoteError extends Error {
   constructor(
     public kind: RemoteErrorKind,
     message: string,
+    // For a clash: the other person's version, as the server has it now.
+    public conflict?: BaseRow,
   ) {
     super(message);
   }
 }
 
+export interface UpsertOptions {
+  // What the row looked like when this edit began (see src/data/conflicts.ts).
+  base?: BaseRow;
+  // Send without checking for a clash (the person chose "use my version").
+  force?: boolean;
+}
+
 export interface Remote {
-  upsert(table: TableName, row: BaseRow): Promise<BaseRow | null>;
+  upsert(table: TableName, row: BaseRow, opts?: UpsertOptions): Promise<BaseRow | null>;
   // Rows with (updated_at, id) strictly after the cursor, oldest first.
   pull(table: TableName, after: Cursor | null, limit: number, jobId?: string): Promise<BaseRow[]>;
   listJobIds(): Promise<string[]>;
@@ -145,11 +154,11 @@ export class SyncEngine {
       this.store.markInFlight(item.seq);
       try {
         await this.hooks.beforePush?.(item);
-        const serverRow = await this.remote.upsert(item.table, item.row);
+        const serverRow = await this.remote.upsert(item.table, item.row, { base: item.base, force: item.force });
         await this.store.ack(item.seq, serverRow);
       } catch (e) {
         if (e instanceof RemoteError && e.kind === 'rejected') {
-          await this.store.reject(item.seq, e.message);
+          await this.store.reject(item.seq, e.message, e.conflict);
           continue;
         }
         await this.store.noteAttempt(item.seq);

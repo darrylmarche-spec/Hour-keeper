@@ -152,8 +152,18 @@ export function useIsPending(table: TableName, id: string): boolean {
   const { store } = useData();
   return useSyncExternalStore(
     (fn) => store.subscribe(fn),
-    () => store.hasPending(table, id),
-    () => store.hasPending(table, id),
+    () => store.hasUnsent(table, id),
+    () => store.hasUnsent(table, id),
+  );
+}
+
+// Why the server refused a change to this row, or null if nothing was refused.
+export function useRejectedReason(table: TableName, id: string): string | null {
+  const { store } = useData();
+  return useSyncExternalStore(
+    (fn) => store.subscribe(fn),
+    () => store.rejectedReason(table, id),
+    () => store.rejectedReason(table, id),
   );
 }
 
